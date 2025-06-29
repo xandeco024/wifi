@@ -609,4 +609,15 @@ public class Modem : MonoBehaviour
             Debug.LogWarning("[Modem] ModemInfoPopup não encontrado na cena!");
         }
     }
+    
+    /// <summary>
+    /// Reseta o modem para o nível básico (usado no restart do jogo)
+    /// </summary>
+    public void ResetToBasicLevel()
+    {
+        currentCableLevelIndex = 0;
+        currentSpeedLevelIndex = 0;
+        
+        Debug.Log("🔄 Modem resetado para nível básico");
+    }
 } 

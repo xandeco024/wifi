@@ -178,4 +178,12 @@ public class ScoreAndCoinsManager : MonoBehaviour
         
         return 5; // Valor padrão
     }
+    
+    public void ResetGame()
+    {
+        currentScore = 0;
+        currentCoins = 0;
+        UpdateDisplay();
+        Debug.Log("Score e Coins resetados para o restart");
+    }
 } 
