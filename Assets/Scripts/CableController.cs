@@ -1,59 +1,40 @@
-using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.UI;
-using UnityEngine.EventSystems;
 
 public class CableController : MonoBehaviour
 {
     [Header("Cable Settings")]
-    [SerializeField] private GameObject cablePrefab; // Prefab da Image do cabo
-    [SerializeField] private float cableWidth = 5f; // Largura do cabo
-    [SerializeField] private Color cableColor = Color.yellow;
-    [SerializeField] private Color cableConnectedColor = Color.green;
+    [SerializeField] private GameObject cablePrefab;
+    [SerializeField] private float maxCableDistance = 8f;
+    [SerializeField] private float connectionRadius = 1f;
     
-    [Header("References")]
-    [SerializeField] private RectTransform cableContainer; // Container para organizar cabos
-    [SerializeField] private Canvas gameCanvas; // Canvas principal
-    [SerializeField] private RectTransform modemRectTransform; // Posição do modem
+    [Header("Cable Origin Points")]
+    [SerializeField] private float frontOffsetZ = 0.8f; // Offset para cabo da frente
+    [SerializeField] private float backOffsetZ = -0.8f; // Offset para cabo de trás
     
-    [Header("Cable Behavior")]
-    [SerializeField] private LayerMask pcLayerMask = -1; // Layer dos PCs (se necessário)
-    [SerializeField] private float connectionSnapDistance = 50f; // Distância para snap
+    [Header("Cable Curve")]
+    [SerializeField] private float curveOffsetDistance = 2f; // Distância do ponto de curva em relação ao modem
+    [SerializeField] private int curveResolution = 8; // Número de pontos na curva (mínimo 3)
     
-    [Header("Debug")]
-    [SerializeField] private bool enableDebugLogs = true;
-    [SerializeField] private bool showCableGizmos = true;
+    [Header("Cable Colors")]
+    [SerializeField] private Color normalCableColor = Color.yellow;
+    [SerializeField] private Color validCableColor = Color.green;
+    [SerializeField] private Color invalidCableColor = Color.red;
     
-    // Estado do sistema
-    private bool isDragging = false;
-    private GameObject activeCable = null;
-    private RectTransform activeCableRect = null;
-    private Image activeCableImage = null;
-    private Vector2 dragStartPosition;
-    private Vector2 currentMousePosition;
+    private Camera mainCamera;
+    private Modem modem;
     
-    // Componentes
-    private Camera uiCamera;
+    private List<CableInstance> activeCables = new List<CableInstance>();
+    private CableInstance currentDragCable;
     
-    // Singleton para fácil acesso
     public static CableController Instance { get; private set; }
     
-    // Contador para nomes únicos de cabos
-    private static int cableCounter = 0;
-    
-    // Eventos
-    public System.Action<Vector2> OnCableDragStart;
-    public System.Action<Vector2> OnCableDragUpdate;
-    public System.Action<ComputerBehavior> OnCableConnected; // PC conectado com sucesso
+    public System.Action<Device> OnCableConnected;
+    public System.Action OnCableDragStarted;
     public System.Action OnCableDragCanceled;
-    
-    // Propriedades públicas
-    public bool IsDragging => isDragging;
-    public bool HasActiveCable => activeCable != null;
     
     void Awake()
     {
-        // Singleton setup
         if (Instance == null)
         {
             Instance = this;
@@ -64,583 +45,471 @@ public class CableController : MonoBehaviour
             return;
         }
         
-        // Auto-configuração
-        if (gameCanvas == null)
-            gameCanvas = FindObjectOfType<Canvas>();
-            
-        // Auto-configuração do modem se não foi definido
-        if (modemRectTransform == null)
-        {
-            Modem modemComponent = FindObjectOfType<Modem>();
-            if (modemComponent != null)
-            {
-                modemRectTransform = modemComponent.GetComponent<RectTransform>();
-                DebugLog("Modem RectTransform auto-detectado");
-            }
-        }
-        
-        // Auto-configuração do Cable Container se não foi definido
-        if (cableContainer == null && gameCanvas != null)
-        {
-            Transform container = gameCanvas.transform.Find("CableContainer");
-            if (container != null)
-            {
-                cableContainer = container.GetComponent<RectTransform>();
-                DebugLog("Cable Container auto-detectado");
-            }
-        }
-            
-        // Detecta câmera da UI
-        uiCamera = gameCanvas?.renderMode == RenderMode.ScreenSpaceOverlay ? null : gameCanvas?.worldCamera;
+        SetupComponents();
+        CreateCablePrefab();
     }
     
     void Start()
     {
-        ValidateReferences();
+        SetupModemEvents();
     }
     
     void Update()
     {
-        if (isDragging)
+        HandleInput();
+        UpdateCurrentCable();
+    }
+    
+    private void SetupComponents()
+    {
+        // Camera
+        mainCamera = Camera.main;
+        if (mainCamera == null)
         {
-            UpdateCableVisual();
+            mainCamera = FindObjectOfType<Camera>();
         }
         
-        // Input de cancelamento (ESC)
-        if (isDragging && Input.GetKeyDown(KeyCode.Escape))
+        // Modem
+        modem = Modem.Instance;
+        if (modem == null)
         {
-            CancelCableDrag();
+            modem = FindObjectOfType<Modem>();
         }
     }
     
-    #region Cable Drag System
-    
-    /// <summary>
-    /// Inicia o drag do cabo a partir do modem
-    /// </summary>
-    public void StartCableDrag()
+    private void CreateCablePrefab()
     {
-        if (isDragging || modemRectTransform == null)
+        if (cablePrefab == null)
         {
-            DebugLog("Não é possível iniciar drag - já está dragando ou modem inválido");
-            return;
+            // Cria prefab básico se não foi definido
+            cablePrefab = new GameObject("CablePrefab");
+            LineRenderer lr = cablePrefab.AddComponent<LineRenderer>();
+            ConfigureLineRenderer(lr);
+            cablePrefab.SetActive(false);
         }
-        
-        // Posição inicial do cabo (centro do modem)
-        dragStartPosition = modemRectTransform.anchoredPosition;
-        
-        // Cria o cabo visual
-        CreateCableVisual();
-        
-        // Define estado
-        isDragging = true;
-        
-        DebugLog($"Cabo iniciado na posição {dragStartPosition}");
-        
-        // Dispara evento
-        OnCableDragStart?.Invoke(dragStartPosition);
     }
     
-    /// <summary>
-    /// Atualiza o visual do cabo durante o drag
-    /// </summary>
-    private void UpdateCableVisual()
+    private void ConfigureLineRenderer(LineRenderer lineRenderer)
     {
-        if (activeCable == null || activeCableRect == null) return;
+        // Garante mínimo de 3 pontos
+        int points = Mathf.Max(3, curveResolution);
+        lineRenderer.positionCount = points;
+        lineRenderer.startWidth = 0.1f;
+        lineRenderer.endWidth = 0.1f;
+        lineRenderer.useWorldSpace = true;
         
-        // Converte posição do mouse para coordenadas UI
-        UpdateMousePosition();
-        
-        // Calcula direção e distância
-        Vector2 direction = currentMousePosition - dragStartPosition;
-        float distance = direction.magnitude;
-        
-        if (distance < 1f) return; // Evita divisão por zero
-        
-        // Atualiza posição do cabo (centro entre início e mouse)
-        Vector2 cableCenter = dragStartPosition + direction * 0.5f;
-        activeCableRect.anchoredPosition = cableCenter;
-        
-        // Atualiza tamanho do cabo (comprimento)
-        activeCableRect.sizeDelta = new Vector2(distance, cableWidth);
-        
-        // Atualiza rotação do cabo
-        float angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
-        activeCableRect.rotation = Quaternion.AngleAxis(angle, Vector3.forward);
-        
-        // Dispara evento de atualização
-        OnCableDragUpdate?.Invoke(currentMousePosition);
-    }
-    
-    /// <summary>
-    /// Finaliza o drag do cabo
-    /// </summary>
-    public void EndCableDrag()
-    {
-        if (!isDragging)
+        // Material básico
+        if (lineRenderer.material == null)
         {
-            DebugLog("Tentativa de finalizar drag sem estar dragando");
-            return;
+            lineRenderer.material = new Material(Shader.Find("Sprites/Default"));
         }
         
-        // Usa diretamente a posição do mouse em coordenadas de tela para o raycast UI
-        Vector2 screenPosition = Input.mousePosition;
-        
-        DebugLog($"Verificando PC na posição de tela: {screenPosition}");
-        
-        // Tenta conectar a um PC
-        ComputerBehavior targetPC = FindPCAtScreenPosition(screenPosition);
-        
-        if (targetPC != null && CanConnectToPC(targetPC))
+        lineRenderer.material.color = normalCableColor;
+    }
+    
+    private void SetupModemEvents()
+    {
+        if (modem != null)
         {
-            // Conexão bem-sucedida
-            ConnectCableToPC(targetPC);
+            modem.OnModemClicked += OnModemClicked;
+            Debug.Log("CableController conectado ao modem");
         }
         else
         {
-            // Conexão falhou - executa diagnóstico e cancela cabo
-            if (targetPC == null)
-            {
-                DebugLog("Executando diagnóstico de PCs...");
-                DiagnosePCRaycastSetup();
-            }
-            CancelCableDrag();
+            Debug.LogWarning("CableController: Modem não encontrado!");
         }
     }
     
-    /// <summary>
-    /// Cancela o drag do cabo
-    /// </summary>
-    public void CancelCableDrag()
+    private void HandleInput()
     {
-        if (!isDragging && activeCable == null) return;
+        // Cancela com clique direito ou ESC
+        if ((Input.GetMouseButtonDown(1) || Input.GetKeyDown(KeyCode.Escape)) && currentDragCable != null)
+        {
+            CancelCurrentCable();
+        }
         
-        DebugLog("Cabo cancelado");
-        
-        // Remove cabo visual
-        DestroyCableVisual();
-        
-        // Reset estado
-        isDragging = false;
-        
-        // Dispara evento
-        OnCableDragCanceled?.Invoke();
+        // Termina drag com release do botão esquerdo
+        if (Input.GetMouseButtonUp(0) && currentDragCable != null)
+        {
+            EndCurrentCable();
+        }
     }
     
-    #endregion
-    
-    #region Cable Visual System
-    
-    /// <summary>
-    /// Cria o cabo visual
-    /// </summary>
-    private void CreateCableVisual()
+    private void UpdateCurrentCable()
     {
-        if (cablePrefab != null)
+        if (currentDragCable == null) return;
+        
+        // Atualiza posição final baseada no mouse
+        Vector3 mouseWorldPos = GetMouseWorldPosition();
+        Vector3 endPosition = mouseWorldPos;
+        
+        // Determina origem do cabo baseado na direção do mouse em relação ao modem
+        Vector3 modemToMouse = mouseWorldPos - modem.Position;
+        Vector3 newStartPosition = GetCableOriginPosition(modemToMouse);
+        
+        // Atualiza posição de início do cabo
+        currentDragCable.startPosition = newStartPosition;
+        
+        // Limita distância máxima baseada na nova posição de início
+        float distance = Vector3.Distance(currentDragCable.startPosition, endPosition);
+        if (distance > maxCableDistance)
         {
-            // Usa prefab se disponível
-            activeCable = Instantiate(cablePrefab);
+            Vector3 direction = (endPosition - currentDragCable.startPosition).normalized;
+            endPosition = currentDragCable.startPosition + direction * maxCableDistance;
+        }
+        
+        currentDragCable.endPosition = endPosition;
+        
+        // Atualiza cabo com curva suave
+        UpdateCableCurve(currentDragCable);
+        
+        // Verifica se há device próximo e muda cor
+        Device nearbyDevice = GetDeviceAtPosition(endPosition);
+        if (nearbyDevice != null && CanConnectToDevice(nearbyDevice))
+        {
+            currentDragCable.lineRenderer.material.color = validCableColor;
+            // Snap para o device
+            currentDragCable.endPosition = nearbyDevice.transform.position;
+            UpdateCableCurve(currentDragCable);
+        }
+        else if (distance >= maxCableDistance)
+        {
+            currentDragCable.lineRenderer.material.color = invalidCableColor;
         }
         else
         {
-            // Cria cabo procedural
-            CreateProceduralCable();
-        }
-        
-        // Configura parent
-        if (cableContainer != null)
-            activeCable.transform.SetParent(cableContainer, false);
-        else if (gameCanvas != null)
-            activeCable.transform.SetParent(gameCanvas.transform, false);
-        
-        // Obtém componentes
-        activeCableRect = activeCable.GetComponent<RectTransform>();
-        activeCableImage = activeCable.GetComponent<Image>();
-        
-        // Configuração inicial
-        if (activeCableImage != null)
-        {
-            activeCableImage.color = cableColor;
-        }
-        
-        // Configura pivot para rotação no centro
-        if (activeCableRect != null)
-        {
-            activeCableRect.pivot = new Vector2(0.5f, 0.5f);
-            activeCableRect.anchorMin = new Vector2(0.5f, 0.5f);
-            activeCableRect.anchorMax = new Vector2(0.5f, 0.5f);
-        }
-        
-        DebugLog("Cabo visual criado");
-    }
-    
-    /// <summary>
-    /// Cria um cabo procedural caso não tenha prefab
-    /// </summary>
-    private void CreateProceduralCable()
-    {
-        // Cria GameObject do cabo
-        cableCounter++;
-        activeCable = new GameObject($"Cable_{cableCounter:D3}");
-        DebugLog($"Cabo {activeCable.name} criado");
-        
-        // Adiciona RectTransform
-        activeCableRect = activeCable.AddComponent<RectTransform>();
-        
-        // Adiciona Image
-        activeCableImage = activeCable.AddComponent<Image>();
-        activeCableImage.color = cableColor;
-        
-        // Configuração do RectTransform
-        activeCableRect.pivot = new Vector2(0.5f, 0.5f);
-        activeCableRect.anchorMin = new Vector2(0.5f, 0.5f);
-        activeCableRect.anchorMax = new Vector2(0.5f, 0.5f);
-        
-        DebugLog("Cabo procedural criado");
-    }
-    
-    /// <summary>
-    /// Remove o cabo visual
-    /// </summary>
-    private void DestroyCableVisual()
-    {
-        if (activeCable != null)
-        {
-            Destroy(activeCable);
-            activeCable = null;
-            activeCableRect = null;
-            activeCableImage = null;
-            
-            DebugLog("Cabo visual destruído");
+            currentDragCable.lineRenderer.material.color = normalCableColor;
         }
     }
     
-    #endregion
-    
-    #region PC Connection System
-    
     /// <summary>
-    /// Encontra PC na posição da tela especificada
+    /// Determina a posição de origem do cabo baseado na direção do mouse e rotação do modem
     /// </summary>
-    private ComputerBehavior FindPCAtScreenPosition(Vector2 screenPosition)
+    /// <param name="directionToMouse">Direção do modem para o mouse</param>
+    /// <returns>Posição mundial de onde o cabo deve sair</returns>
+    private Vector3 GetCableOriginPosition(Vector3 directionToMouse)
     {
-        // Raycast UI para encontrar PCs
-        PointerEventData pointerData = new PointerEventData(EventSystem.current)
+        Vector3 modemPos = modem.Position;
+        
+        // Obtém a direção "forward" do modem baseado na sua rotação
+        Vector3 modemForward = modem.transform.forward;
+        
+        // Projeta a direção do mouse no plano X-Z
+        Vector3 mouseDirectionXZ = new Vector3(directionToMouse.x, 0, directionToMouse.z).normalized;
+        
+        // Calcula se o mouse está na frente ou atrás do modem
+        float dotProduct = Vector3.Dot(modemForward, mouseDirectionXZ);
+        
+        // Se dot product > 0, mouse está na frente; se < 0, está atrás
+        bool mouseInFront = dotProduct > 0;
+        
+        // Calcula offset baseado na rotação do modem
+        Vector3 offset = modemForward * (mouseInFront ? frontOffsetZ : backOffsetZ);
+        
+        return modemPos + offset;
+    }
+    
+    private void UpdateCableCurve(CableInstance cable)
+    {
+        Vector3 start = cable.startPosition;
+        Vector3 end = cable.endPosition;
+        Vector3 modemPos = modem.Position;
+        
+        // Determina direção da curva baseado na origem do cabo
+        Vector3 startToModem = start - modemPos;
+        Vector3 modemForward = modem.transform.forward;
+        
+        // Verifica se cabo sai da frente ou de trás
+        bool cableFromFront = Vector3.Dot(startToModem, modemForward) > 0;
+        
+        // Ponto de controle da curva (perpendicular à direção do cabo)
+        Vector3 curveDirection = cableFromFront ? modemForward : -modemForward;
+        Vector3 curvePoint = modemPos + curveDirection * curveOffsetDistance;
+        
+        // Gera curva suave usando interpolação quadrática de Bézier
+        int pointCount = cable.lineRenderer.positionCount;
+        
+        for (int i = 0; i < pointCount; i++)
         {
-            position = screenPosition
-        };
+            float t = (float)i / (pointCount - 1); // Normaliza de 0 a 1
+            Vector3 curvePosition = CalculateBezierPoint(start, curvePoint, end, t);
+            cable.lineRenderer.SetPosition(i, curvePosition);
+        }
+    }
+    
+    private Vector3 CalculateBezierPoint(Vector3 p0, Vector3 p1, Vector3 p2, float t)
+    {
+        // Curva quadrática de Bézier: B(t) = (1-t)²P0 + 2(1-t)tP1 + t²P2
+        float u = 1f - t;
+        float tt = t * t;
+        float uu = u * u;
         
-        // Realiza raycast
-        var results = new System.Collections.Generic.List<RaycastResult>();
-        EventSystem.current.RaycastAll(pointerData, results);
+        Vector3 point = uu * p0; // (1-t)² * P0
+        point += 2f * u * t * p1; // 2(1-t)t * P1
+        point += tt * p2; // t² * P2
         
-        DebugLog($"Raycast encontrou {results.Count} objetos na posição {screenPosition}");
+        return point;
+    }
+    
+    private Vector3 GetMouseWorldPosition()
+    {
+        if (mainCamera == null) return Vector3.zero;
         
-        // Debug: lista todos os objetos encontrados
-        for (int i = 0; i < results.Count; i++)
+        // Raycast do mouse para o plano Y=0 (plano do grid)
+        Ray ray = mainCamera.ScreenPointToRay(Input.mousePosition);
+        Plane groundPlane = new Plane(Vector3.up, Vector3.zero);
+        
+        if (groundPlane.Raycast(ray, out float distance))
         {
-            var result = results[i];
-            DebugLog($"Objeto {i}: {result.gameObject.name} (Layer: {result.gameObject.layer})");
-            
-            // Verifica se tem ComputerBehavior
-            ComputerBehavior pc = result.gameObject.GetComponent<ComputerBehavior>();
-            if (pc != null)
+            return ray.GetPoint(distance);
+        }
+        
+        // Fallback para método anterior se raycast falhar
+        Vector3 mouseScreenPos = Input.mousePosition;
+        mouseScreenPos.z = Mathf.Abs(mainCamera.transform.position.z);
+        Vector3 worldPos = mainCamera.ScreenToWorldPoint(mouseScreenPos);
+        worldPos.y = 0; // Força Y=0 para manter no plano do grid
+        
+        return worldPos;
+    }
+    
+
+    
+    private Device GetDeviceAtPosition(Vector3 position)
+    {
+        Collider[] colliders = Physics.OverlapSphere(position, connectionRadius);
+        
+        foreach (Collider col in colliders)
+        {
+            Device device = col.GetComponent<Device>();
+            if (device != null)
             {
-                DebugLog($"PC encontrado: {pc.name} (Estado: {pc.CurrentState})");
-                return pc;
-            }
-            
-            // Verifica se tem ComputerBehavior nos pais
-            ComputerBehavior parentPC = result.gameObject.GetComponentInParent<ComputerBehavior>();
-            if (parentPC != null)
-            {
-                DebugLog($"PC encontrado no pai: {parentPC.name} (Estado: {parentPC.CurrentState})");
-                return parentPC;
+                return device;
             }
         }
         
-        DebugLog("Nenhum PC encontrado na posição do mouse");
         return null;
     }
     
-    /// <summary>
-    /// Verifica se pode conectar ao PC
-    /// </summary>
-    private bool CanConnectToPC(ComputerBehavior pc)
+    private bool CanConnectToDevice(Device device)
     {
-        if (pc == null) return false;
-        
-        // Só pode conectar se estiver desconectado
-        bool canConnect = pc.CurrentState == ComputerBehavior.PCState.Disconnected;
-        
-        DebugLog($"Pode conectar ao PC {pc.name}: {canConnect} (Estado: {pc.CurrentState})");
-        
-        return canConnect;
+        return device != null && 
+               device.CurrentState == Device.DeviceState.Disconnected &&
+               device.TimeRemaining > 0;
     }
     
-    /// <summary>
-    /// Conecta o cabo ao PC
-    /// </summary>
-    private void ConnectCableToPC(ComputerBehavior pc)
+    private void OnModemClicked(Modem clickedModem)
     {
-        DebugLog($"Conectando cabo ao PC {pc.name}");
-        
-        // Conecta o PC
-        pc.ConnectPC();
-        
-        // Muda cor do cabo para conectado
-        if (activeCableImage != null)
+        if (currentDragCable == null)
         {
-            activeCableImage.color = cableConnectedColor;
+            // Verifica limite de cabos simultâneos
+            if (GetConnectedCablesCount() >= clickedModem.MaxSimultaneousCables)
+            {
+                Debug.Log($"Limite de cabos atingido! Máximo: {clickedModem.MaxSimultaneousCables}");
+                return;
+            }
+            
+            StartNewCable(clickedModem.Position);
         }
-        
-        // Fixa o cabo na posição final
-        Vector2 pcPosition = pc.GetComponent<RectTransform>().anchoredPosition;
-        FixCableToPosition(pcPosition);
-        
-        // CORREÇÃO: Guarda referência específica deste cabo antes de resetar activeCable
-        GameObject connectedCable = activeCable;
-        string cableName = connectedCable != null ? connectedCable.name : "null";
-        DebugLog($"Cabo {cableName} conectado ao PC {pc.name}, agendando destruição em 2s");
-        
-        // Para o sistema de drag e reseta variáveis para permitir novo cabo
-        isDragging = false;
-        activeCable = null;
-        activeCableRect = null;
-        activeCableImage = null;
-        
-        // Dispara evento
-        OnCableConnected?.Invoke(pc);
-        
-        // Agenda destruição DESTE cabo específico após cooldown do PC
-        StartCoroutine(DestroyCableAfterDelay(connectedCable, 2f));
     }
     
-    /// <summary>
-    /// Fixa o cabo numa posição específica
-    /// </summary>
-    private void FixCableToPosition(Vector2 endPosition)
+    private void StartNewCable(Vector3 modemPos)
     {
-        if (activeCableRect == null) return;
+        // Posição inicial será atualizada dinamicamente no Update
+        Vector3 startPosition = modemPos;
         
-        // Calcula posição e rotação finais
-        Vector2 direction = endPosition - dragStartPosition;
-        float distance = direction.magnitude;
-        Vector2 cableCenter = dragStartPosition + direction * 0.5f;
-        float angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
+        // Cria nova instância do cabo
+        GameObject cableObj = Instantiate(cablePrefab, transform);
+        cableObj.SetActive(true);
         
-        // Aplica transformações finais
-        activeCableRect.anchoredPosition = cableCenter;
-        activeCableRect.sizeDelta = new Vector2(distance, cableWidth);
-        activeCableRect.rotation = Quaternion.AngleAxis(angle, Vector3.forward);
-        
-        DebugLog($"Cabo fixado entre {dragStartPosition} e {endPosition}");
-    }
-    
-    /// <summary>
-    /// Destrói o cabo após delay
-    /// </summary>
-    private IEnumerator DestroyCableAfterDelay(float delay)
-    {
-        yield return new WaitForSeconds(delay);
-        
-        // Remove o cabo
-        DestroyCableVisual();
-        
-        DebugLog("Cabo removido após delay");
-    }
-    
-    /// <summary>
-    /// Destrói um cabo específico após delay (para múltiplos cabos simultâneos)
-    /// </summary>
-    private IEnumerator DestroyCableAfterDelay(GameObject specificCable, float delay)
-    {
-        yield return new WaitForSeconds(delay);
-        
-        // Remove o cabo específico
-        if (specificCable != null)
+        CableInstance newCable = new CableInstance
         {
-            DebugLog($"Destruindo cabo específico: {specificCable.name}");
-            Destroy(specificCable);
+            gameObject = cableObj,
+            lineRenderer = cableObj.GetComponent<LineRenderer>(),
+            startPosition = startPosition,
+            endPosition = startPosition,
+            isConnected = false
+        };
+        
+        // Configura LineRenderer
+        ConfigureLineRenderer(newCable.lineRenderer);
+        
+        activeCables.Add(newCable);
+        currentDragCable = newCable;
+        
+        Debug.Log("Cabo iniciado - origem dinâmica baseada na posição do mouse");
+        OnCableDragStarted?.Invoke();
+    }
+    
+    private void EndCurrentCable()
+    {
+        if (currentDragCable == null) return;
+        
+        // Verifica se pode conectar
+        Device targetDevice = GetDeviceAtPosition(currentDragCable.endPosition);
+        
+        if (targetDevice != null && CanConnectToDevice(targetDevice))
+        {
+            ConnectCableToDevice(currentDragCable, targetDevice);
         }
         else
         {
-            DebugLog("Cabo específico já foi destruído ou é null");
+            CancelCurrentCable();
         }
     }
     
-    #endregion
-    
-    #region Utility Methods
-    
-    /// <summary>
-    /// Atualiza posição do mouse em coordenadas UI
-    /// </summary>
-    private void UpdateMousePosition()
+    private void CancelCurrentCable()
     {
-        Vector2 localMousePos;
-        RectTransform canvasRect = gameCanvas.GetComponent<RectTransform>();
+        if (currentDragCable == null) return;
         
-        if (RectTransformUtility.ScreenPointToLocalPointInRectangle(
-            canvasRect, Input.mousePosition, uiCamera, out localMousePos))
-        {
-            currentMousePosition = localMousePos;
-        }
+        activeCables.Remove(currentDragCable);
+        Destroy(currentDragCable.gameObject);
+        currentDragCable = null;
+        
+        Debug.Log("Cabo cancelado");
+        OnCableDragCanceled?.Invoke();
     }
     
-    /// <summary>
-    /// Valida referências necessárias
-    /// </summary>
-    private bool ValidateReferences()
+    private void ConnectCableToDevice(CableInstance cable, Device device)
     {
-        bool isValid = true;
+        cable.isConnected = true;
+        cable.connectedDevice = device;
+        cable.endPosition = device.transform.position;
         
-        if (gameCanvas == null)
-        {
-            Debug.LogError("[CableController] Game Canvas não encontrado!");
-            isValid = false;
-        }
+        // Atualiza visual final
+        cable.lineRenderer.material.color = validCableColor;
+        UpdateCableCurve(cable);
         
-        if (modemRectTransform == null)
-        {
-            Debug.LogError("[CableController] Modem RectTransform não definido!");
-            isValid = false;
-        }
+        // Escuta evento de destruição do device para remover cabo no momento certo
+        device.OnDeviceDestroyed += OnConnectedDeviceDestroyed;
         
-        if (cableContainer == null)
-        {
-            DebugLog("Cable Container não definido - cabos serão criados no Canvas");
-        }
+        // Conecta o device
+        device.ConnectDevice();
         
-        return isValid;
+        Debug.Log($"Cabo conectado ao device: {device.name}");
+        OnCableConnected?.Invoke(device);
+        
+        currentDragCable = null;
     }
     
-    /// <summary>
-    /// Log de debug
-    /// </summary>
-    private void DebugLog(string message)
+    private void OnConnectedDeviceDestroyed(GameObject destroyedDevice)
     {
-        if (enableDebugLogs)
+        // Encontra o cabo conectado a este device
+        CableInstance cableToRemove = null;
+        foreach (CableInstance cable in activeCables)
         {
-            Debug.Log($"[CableController] {message}");
-        }
-    }
-    
-    #endregion
-    
-    #region Public Methods
-    
-    /// <summary>
-    /// Força cancelamento de qualquer cabo ativo
-    /// </summary>
-    public void ForceCancelActiveCable()
-    {
-        if (isDragging || HasActiveCable)
-        {
-            CancelCableDrag();
-        }
-    }
-    
-    /// <summary>
-    /// Retorna informações de debug do sistema
-    /// </summary>
-    public string GetCableSystemInfo()
-    {
-        return $"Dragging: {isDragging}, Active Cable: {HasActiveCable}, " +
-               $"Start Pos: {dragStartPosition}, Mouse Pos: {currentMousePosition}";
-    }
-    
-    /// <summary>
-    /// Diagnóstico dos PCs na cena para verificar configuração de raycast
-    /// </summary>
-    public void DiagnosePCRaycastSetup()
-    {
-        ComputerBehavior[] allPCs = FindObjectsOfType<ComputerBehavior>();
-        DebugLog($"=== DIAGNÓSTICO DE PCs ({allPCs.Length} encontrados) ===");
-        
-        for (int i = 0; i < allPCs.Length; i++)
-        {
-            ComputerBehavior pc = allPCs[i];
-            Image pcImage = pc.GetComponent<Image>();
-            
-            DebugLog($"PC {i}: {pc.name}");
-            DebugLog($"  - Posição: {pc.transform.position}");
-            DebugLog($"  - RectTransform: {pc.GetComponent<RectTransform>()?.anchoredPosition}");
-            DebugLog($"  - Tem Image: {pcImage != null}");
-            DebugLog($"  - Raycast Target: {(pcImage != null ? pcImage.raycastTarget : false)}");
-            DebugLog($"  - Canvas pai: {pc.GetComponentInParent<Canvas>()?.name}");
-            DebugLog($"  - Estado: {pc.CurrentState}");
-            DebugLog($"  - GameObject ativo: {pc.gameObject.activeInHierarchy}");
+            if (cable.isConnected && cable.connectedDevice != null && 
+                cable.connectedDevice.gameObject == destroyedDevice)
+            {
+                cableToRemove = cable;
+                break;
+            }
         }
         
-        DebugLog("=== FIM DIAGNÓSTICO ===");
-    }
-    
-    /// <summary>
-    /// Configura cor do cabo dinamicamente
-    /// </summary>
-    public void SetCableColor(Color newColor)
-    {
-        cableColor = newColor;
-        if (activeCableImage != null)
+        // Remove o cabo imediatamente
+        if (cableToRemove != null)
         {
-            activeCableImage.color = newColor;
+            activeCables.Remove(cableToRemove);
+            Destroy(cableToRemove.gameObject);
+            Debug.Log("Cabo removido junto com device destruído");
         }
     }
     
-    #endregion
-    
-    #region Input Integration
-    
-    /// <summary>
-    /// Método para ser chamado pelo Modem quando inicia drag
-    /// </summary>
-    public void OnModemDragStart()
+    private System.Collections.IEnumerator RemoveCableAfterDelay(CableInstance cable, float delay)
     {
-        StartCableDrag();
+        yield return new WaitForSeconds(delay);
+        
+        if (activeCables.Contains(cable))
+        {
+            activeCables.Remove(cable);
+            Destroy(cable.gameObject);
+        }
     }
     
-    /// <summary>
-    /// Método para ser chamado quando solta o mouse
-    /// </summary>
-    public void OnModemDragEnd()
+    public void DestroyAllCables()
     {
-        EndCableDrag();
+        foreach (CableInstance cable in activeCables)
+        {
+            if (cable.gameObject != null)
+            {
+                Destroy(cable.gameObject);
+            }
+        }
+        
+        activeCables.Clear();
+        currentDragCable = null;
+        Debug.Log("Todos os cabos destruídos");
     }
     
-    /// <summary>
-    /// Método para cancelar drag (ESC, clique direito, etc.)
-    /// </summary>
-    public void OnDragCancel()
+    public int GetConnectedCablesCount()
     {
-        CancelCableDrag();
+        int count = 0;
+        foreach (CableInstance cable in activeCables)
+        {
+            if (cable.isConnected && cable.connectedDevice != null)
+            {
+                count++;
+            }
+        }
+        return count;
     }
     
-    #endregion
+    public int GetMaxSimultaneousCables()
+    {
+        return modem != null ? modem.MaxSimultaneousCables : 2;
+    }
     
-    #region Gizmos
+    void OnDestroy()
+    {
+        if (modem != null)
+        {
+            modem.OnModemClicked -= OnModemClicked;
+        }
+    }
     
     void OnDrawGizmosSelected()
     {
-        if (!showCableGizmos) return;
+        if (modem == null) return;
         
-        // Desenha posição do modem
-        if (modemRectTransform != null)
-        {
-            Gizmos.color = Color.blue;
-            Vector3 modemWorldPos = modemRectTransform.TransformPoint(modemRectTransform.anchoredPosition);
-            Gizmos.DrawWireSphere(modemWorldPos, 20f);
-        }
+        // Distância máxima do cabo
+        Gizmos.color = Color.yellow;
+        Gizmos.DrawWireSphere(modem.Position, maxCableDistance);
         
-        // Desenha linha do cabo ativo
-        if (isDragging && modemRectTransform != null)
+        // Pontos de saída dos cabos baseados na rotação do modem
+        Gizmos.color = Color.cyan;
+        Vector3 modemForward = modem.transform.forward;
+        Vector3 frontOffset = modem.Position + modemForward * frontOffsetZ;
+        Vector3 backOffset = modem.Position + modemForward * backOffsetZ;
+        Gizmos.DrawWireSphere(frontOffset, 0.2f);
+        Gizmos.DrawWireSphere(backOffset, 0.2f);
+        
+        // Direção do modem (forward)
+        Gizmos.color = Color.green;
+        Gizmos.DrawRay(modem.Position, modemForward * 2f);
+        
+        // Pontos de controle da curva (frente e trás)
+        Gizmos.color = Color.magenta;
+        Vector3 curvePointFront = modem.Position + modemForward * curveOffsetDistance;
+        Vector3 curvePointBack = modem.Position - modemForward * curveOffsetDistance;
+        Gizmos.DrawWireSphere(curvePointFront, 0.3f);
+        Gizmos.DrawWireSphere(curvePointBack, 0.3f);
+        
+        // Raio de conexão
+        if (currentDragCable != null)
         {
-            Gizmos.color = cableColor;
-            Vector3 startWorld = modemRectTransform.TransformPoint(dragStartPosition);
-            Vector3 endWorld = modemRectTransform.TransformPoint(currentMousePosition);
-            Gizmos.DrawLine(startWorld, endWorld);
+            Gizmos.color = Color.red;
+            Gizmos.DrawWireSphere(currentDragCable.endPosition, connectionRadius);
         }
     }
     
-    #endregion
+    [System.Serializable]
+    public class CableInstance
+    {
+        public GameObject gameObject;
+        public LineRenderer lineRenderer;
+        public Vector3 startPosition;
+        public Vector3 endPosition;
+        public bool isConnected;
+        public Device connectedDevice;
+    }
 } 

@@ -1,32 +1,39 @@
 using UnityEngine;
 
 /// <summary>
-/// Define os limites do mundo 3D onde objetos podem ser posicionados
-/// Substitui os limites do Canvas no sistema UI
+/// Sistema de Grid 3D para spawn de devices
+/// Grid sempre ímpar com célula central reservada para o modem
 /// </summary>
 public class WorldBounds : MonoBehaviour
 {
-    [Header("Bounds Settings")]
-    [SerializeField] private Vector3 minBounds = new Vector3(-10f, -10f, 0f);
-    [SerializeField] private Vector3 maxBounds = new Vector3(10f, 10f, 0f);
+    [Header("Grid Settings")]
+    [SerializeField] private int gridColumns = 9; // Sempre ímpar (colunas no eixo X)
+    [SerializeField] private int gridRows = 9; // Sempre ímpar (linhas no eixo Z)
+    [SerializeField] private float cellSize = 2f; // Tamanho de cada célula
+    [SerializeField] private Vector3 gridCenter = Vector3.zero; // Centro do grid (posição do modem)
+    [SerializeField] private float gridYPosition = 0f; // Altura fixa do grid
     
     [Header("Visual")]
-    [SerializeField] private bool showBounds = true;
-    [SerializeField] private Color boundsColor = Color.green;
-    [SerializeField] private bool showCenter = true;
-    
-    [Header("Auto-Setup")]
-    [SerializeField] private bool autoSetupFromCamera = false;
-    [SerializeField] private float cameraMargin = 1f;
+    [SerializeField] private bool showGrid = true;
+    [SerializeField] private Color gridColor = Color.cyan;
+    [SerializeField] private Color occupiedColor = Color.red;
+    [SerializeField] private Color centerColor = Color.yellow;
     
     // Singleton para fácil acesso
     public static WorldBounds Instance { get; private set; }
     
+    // Grid system
+    private bool[,] gridOccupied; // Controla quais células estão ocupadas
+    private Vector3[,] gridPositions; // Posições mundiais de cada célula
+    private Vector2Int centerCell; // Coordenadas da célula central (modem)
+    
     // Propriedades públicas
-    public Vector3 MinBounds => minBounds;
-    public Vector3 MaxBounds => maxBounds;
-    public Vector3 Center => (minBounds + maxBounds) * 0.5f;
-    public Vector3 Size => maxBounds - minBounds;
+    public int GridColumns => gridColumns;
+    public int GridRows => gridRows;
+    public float CellSize => cellSize;
+    public Vector3 GridCenter => gridCenter;
+    public int TotalGridCells => gridColumns * gridRows;
+    public Vector2Int CenterCell => centerCell;
     
     void Awake()
     {
@@ -42,251 +49,388 @@ public class WorldBounds : MonoBehaviour
             return;
         }
         
-        // Auto-setup baseado na câmera se habilitado
-        if (autoSetupFromCamera)
-        {
-            SetupFromCamera();
-        }
+        // Força valores ímpares
+        EnsureOddGridSize();
+        
+        // Inicializa grid imediatamente no Awake
+        InitializeGrid();
+        
+        Debug.Log($"[WorldBounds] Grid inicializado no Awake: {gridColumns}x{gridRows} células, tamanho {cellSize}");
+        Debug.Log($"[WorldBounds] Célula central (modem): {centerCell}");
     }
     
     void Start()
     {
-        // Posiciona este GameObject no centro dos bounds
-        transform.position = Center;
-        
-        Debug.Log($"[WorldBounds] Bounds configurados: Min{minBounds} Max{maxBounds} Size{Size}");
-    }
-    
-    #region Bounds Validation
-    
-    /// <summary>
-    /// Verifica se uma posição está dentro dos bounds
-    /// </summary>
-    /// <param name="position">Posição a verificar</param>
-    /// <returns>True se está dentro dos bounds</returns>
-    public bool IsInBounds(Vector3 position)
-    {
-        return position.x >= minBounds.x && position.x <= maxBounds.x &&
-               position.y >= minBounds.y && position.y <= maxBounds.y &&
-               position.z >= minBounds.z && position.z <= maxBounds.z;
+        // Posiciona este GameObject no centro do grid
+        transform.position = gridCenter;
     }
     
     /// <summary>
-    /// Clamp uma posição dentro dos bounds
+    /// Garante que o grid sempre tenha tamanho ímpar
     /// </summary>
-    /// <param name="position">Posição a clampar</param>
-    /// <returns>Posição clampada dentro dos bounds</returns>
-    public Vector3 ClampToBounds(Vector3 position)
+    private void EnsureOddGridSize()
     {
-        return new Vector3(
-            Mathf.Clamp(position.x, minBounds.x, maxBounds.x),
-            Mathf.Clamp(position.y, minBounds.y, maxBounds.y),
-            Mathf.Clamp(position.z, minBounds.z, maxBounds.z)
-        );
-    }
-    
-    /// <summary>
-    /// Retorna uma posição aleatória dentro dos bounds
-    /// </summary>
-    /// <returns>Posição aleatória válida</returns>
-    public Vector3 GetRandomPosition()
-    {
-        return new Vector3(
-            Random.Range(minBounds.x, maxBounds.x),
-            Random.Range(minBounds.y, maxBounds.y),
-            Random.Range(minBounds.z, maxBounds.z)
-        );
-    }
-    
-    /// <summary>
-    /// Retorna uma posição aleatória em um círculo/anel ao redor de um ponto central
-    /// </summary>
-    /// <param name="center">Centro do círculo</param>
-    /// <param name="minRadius">Raio mínimo</param>
-    /// <param name="maxRadius">Raio máximo</param>
-    /// <returns>Posição aleatória no anel, clampada aos bounds</returns>
-    public Vector3 GetRandomPositionInRing(Vector3 center, float minRadius, float maxRadius)
-    {
-        // Gera ângulo aleatório
-        float angle = Random.Range(0f, 360f) * Mathf.Deg2Rad;
-        
-        // Gera distância aleatória no anel
-        float distance = Random.Range(minRadius, maxRadius);
-        
-        // Calcula posição
-        Vector3 randomPosition = center + new Vector3(
-            Mathf.Cos(angle) * distance,
-            Mathf.Sin(angle) * distance,
-            center.z
-        );
-        
-        // Clamp aos bounds
-        return ClampToBounds(randomPosition);
-    }
-    
-    /// <summary>
-    /// Verifica se duas posições estão suficientemente distantes
-    /// </summary>
-    /// <param name="pos1">Primeira posição</param>
-    /// <param name="pos2">Segunda posição</param>
-    /// <param name="minDistance">Distância mínima requerida</param>
-    /// <returns>True se estão suficientemente distantes</returns>
-    public bool ArePositionsValid(Vector3 pos1, Vector3 pos2, float minDistance)
-    {
-        return Vector3.Distance(pos1, pos2) >= minDistance;
-    }
-    
-    #endregion
-    
-    #region Configuration
-    
-    /// <summary>
-    /// Configura os bounds manualmente
-    /// </summary>
-    /// <param name="newMinBounds">Novos bounds mínimos</param>
-    /// <param name="newMaxBounds">Novos bounds máximos</param>
-    public void SetBounds(Vector3 newMinBounds, Vector3 newMaxBounds)
-    {
-        minBounds = newMinBounds;
-        maxBounds = newMaxBounds;
-        
-        // Atualiza posição do GameObject
-        transform.position = Center;
-        
-        Debug.Log($"[WorldBounds] Bounds atualizados: Min{minBounds} Max{maxBounds}");
-    }
-    
-    /// <summary>
-    /// Configura bounds baseado na visão da câmera
-    /// </summary>
-    /// <param name="camera">Câmera de referência (se null, usa Camera.main)</param>
-    /// <param name="margin">Margem para reduzir a área (padrão: usa cameraMargin)</param>
-    public void SetupFromCamera(Camera camera = null, float? margin = null)
-    {
-        if (camera == null) camera = Camera.main;
-        if (camera == null)
+        if (gridColumns % 2 == 0)
         {
-            Debug.LogError("[WorldBounds] Câmera não encontrada para auto-setup!");
-            return;
+            gridColumns++;
+            Debug.LogWarning($"[WorldBounds] Colunas ajustadas para {gridColumns} (deve ser ímpar)");
         }
         
-        float actualMargin = margin ?? cameraMargin;
-        
-        if (camera.orthographic)
+        if (gridRows % 2 == 0)
         {
-            // Câmera orthographic
-            float halfHeight = camera.orthographicSize - actualMargin;
-            float halfWidth = halfHeight * camera.aspect;
-            
-            Vector3 cameraPos = camera.transform.position;
-            
-            minBounds = new Vector3(cameraPos.x - halfWidth, cameraPos.y - halfHeight, 0f);
-            maxBounds = new Vector3(cameraPos.x + halfWidth, cameraPos.y + halfHeight, 0f);
+            gridRows++;
+            Debug.LogWarning($"[WorldBounds] Linhas ajustadas para {gridRows} (deve ser ímpar)");
         }
-        else
-        {
-            // Câmera perspective - calcula baseado na distância
-            float distance = Mathf.Abs(camera.transform.position.z);
-            float halfHeight = (Mathf.Tan(camera.fieldOfView * 0.5f * Mathf.Deg2Rad) * distance) - actualMargin;
-            float halfWidth = halfHeight * camera.aspect;
-            
-            Vector3 cameraPos = camera.transform.position;
-            
-            minBounds = new Vector3(cameraPos.x - halfWidth, cameraPos.y - halfHeight, 0f);
-            maxBounds = new Vector3(cameraPos.x + halfWidth, cameraPos.y + halfHeight, 0f);
-        }
-        
-        // Atualiza posição do GameObject
-        transform.position = Center;
-        
-        Debug.Log($"[WorldBounds] Auto-configurado pela câmera: Min{minBounds} Max{maxBounds}");
     }
     
-    #endregion
+    /// <summary>
+    /// Inicializa o sistema de grid
+    /// </summary>
+    private void InitializeGrid()
+    {
+        gridOccupied = new bool[gridColumns, gridRows];
+        gridPositions = new Vector3[gridColumns, gridRows];
+        
+        // Calcula célula central
+        centerCell = new Vector2Int(gridColumns / 2, gridRows / 2);
+        
+        // Calcula posições de cada célula
+        for (int x = 0; x < gridColumns; x++)
+        {
+            for (int z = 0; z < gridRows; z++)
+            {
+                // Calcula posição mundial da célula
+                float worldX = gridCenter.x + (x - gridColumns / 2) * cellSize;
+                float worldZ = gridCenter.z + (z - gridRows / 2) * cellSize;
+                
+                gridPositions[x, z] = new Vector3(worldX, gridYPosition, worldZ);
+                
+                // Marca célula central como ocupada (modem)
+                if (x == centerCell.x && z == centerCell.y)
+                {
+                    gridOccupied[x, z] = true;
+                }
+                else
+                {
+                    gridOccupied[x, z] = false;
+                }
+            }
+        }
+        
+        Debug.Log($"[WorldBounds] Grid inicializado com {gridColumns * gridRows} células");
+        Debug.Log($"[WorldBounds] Célula central {centerCell} reservada para modem");
+    }
+    
+    /// <summary>
+    /// Atualiza o centro do grid (geralmente posição do modem)
+    /// </summary>
+    /// <param name="newCenter">Nova posição central</param>
+    public void SetGridCenter(Vector3 newCenter)
+    {
+        gridCenter = newCenter;
+        InitializeGrid(); // Recalcula posições
+        transform.position = gridCenter;
+    }
+    
+    /// <summary>
+    /// Retorna uma posição livre aleatória no grid (exceto célula central)
+    /// </summary>
+    /// <returns>Posição livre ou Vector3.zero se não houver</returns>
+    public Vector3 GetRandomGridPosition()
+    {
+        // Lista de células livres (exceto central)
+        System.Collections.Generic.List<Vector2Int> freeCells = new System.Collections.Generic.List<Vector2Int>();
+        
+        for (int x = 0; x < gridColumns; x++)
+        {
+            for (int z = 0; z < gridRows; z++)
+            {
+                // Pula célula central e células ocupadas
+                if ((x == centerCell.x && z == centerCell.y) || gridOccupied[x, z])
+                    continue;
+                
+                freeCells.Add(new Vector2Int(x, z));
+            }
+        }
+        
+        if (freeCells.Count == 0)
+        {
+            Debug.LogWarning("[WorldBounds] Nenhuma célula livre no grid!");
+            return Vector3.zero;
+        }
+        
+        // Seleciona célula aleatória
+        Vector2Int selectedCell = freeCells[Random.Range(0, freeCells.Count)];
+        return gridPositions[selectedCell.x, selectedCell.y];
+    }
+    
+    /// <summary>
+    /// Ocupa uma célula do grid na posição mais próxima
+    /// </summary>
+    /// <param name="worldPosition">Posição mundial</param>
+    /// <returns>True se conseguiu ocupar</returns>
+    public bool OccupyGridCell(Vector3 worldPosition)
+    {
+        Vector2Int gridCoord = WorldToGridCoordinates(worldPosition);
+        
+        if (IsValidGridCoordinate(gridCoord) && !gridOccupied[gridCoord.x, gridCoord.y])
+        {
+            gridOccupied[gridCoord.x, gridCoord.y] = true;
+            return true;
+        }
+        
+        return false;
+    }
+    
+    /// <summary>
+    /// Libera uma célula do grid
+    /// </summary>
+    /// <param name="worldPosition">Posição mundial</param>
+    public void FreeGridCell(Vector3 worldPosition)
+    {
+        Vector2Int gridCoord = WorldToGridCoordinates(worldPosition);
+        
+        if (IsValidGridCoordinate(gridCoord))
+        {
+            // Não permite liberar a célula central
+            if (gridCoord.x == centerCell.x && gridCoord.y == centerCell.y)
+                return;
+                
+            gridOccupied[gridCoord.x, gridCoord.y] = false;
+        }
+    }
+    
+    /// <summary>
+    /// Converte posição mundial para coordenadas do grid
+    /// </summary>
+    /// <param name="worldPosition">Posição mundial</param>
+    /// <returns>Coordenadas do grid</returns>
+    public Vector2Int WorldToGridCoordinates(Vector3 worldPosition)
+    {
+        float relativeX = worldPosition.x - gridCenter.x;
+        float relativeZ = worldPosition.z - gridCenter.z;
+        
+        int gridX = Mathf.RoundToInt(relativeX / cellSize + gridColumns / 2);
+        int gridZ = Mathf.RoundToInt(relativeZ / cellSize + gridRows / 2);
+        
+        return new Vector2Int(gridX, gridZ);
+    }
+    
+    /// <summary>
+    /// Verifica se as coordenadas do grid são válidas
+    /// </summary>
+    /// <param name="gridCoord">Coordenadas do grid</param>
+    /// <returns>True se válidas</returns>
+    public bool IsValidGridCoordinate(Vector2Int gridCoord)
+    {
+        return gridCoord.x >= 0 && gridCoord.x < gridColumns &&
+               gridCoord.y >= 0 && gridCoord.y < gridRows;
+    }
+    
+    /// <summary>
+    /// Retorna quantas células estão ocupadas (incluindo central)
+    /// </summary>
+    /// <returns>Número de células ocupadas</returns>
+    public int GetOccupiedCellsCount()
+    {
+        int count = 0;
+        for (int x = 0; x < gridColumns; x++)
+        {
+            for (int z = 0; z < gridRows; z++)
+            {
+                if (gridOccupied[x, z]) count++;
+            }
+        }
+        return count;
+    }
+    
+    /// <summary>
+    /// Retorna quantas células estão livres para spawn (exceto central)
+    /// </summary>
+    /// <returns>Número de células livres</returns>
+    public int GetFreeCellsCount()
+    {
+        return TotalGridCells - GetOccupiedCellsCount();
+    }
+    
+    /// <summary>
+    /// Retorna a posição mundial da célula central (modem)
+    /// </summary>
+    /// <returns>Posição mundial do centro</returns>
+    public Vector3 GetCenterCellPosition()
+    {
+        if (gridPositions == null)
+        {
+            Debug.LogWarning("[WorldBounds] Grid não inicializado - retornando gridCenter");
+            return gridCenter;
+        }
+        return gridPositions[centerCell.x, centerCell.y];
+    }
     
     #region Debug & Gizmos
     
     void OnDrawGizmos()
     {
-        if (!showBounds) return;
+        if (!showGrid) return;
         
-        // Desenha bounds
-        Gizmos.color = boundsColor;
-        Vector3 center = (minBounds + maxBounds) * 0.5f;
-        Vector3 size = maxBounds - minBounds;
-        Gizmos.DrawWireCube(center, size);
-        
-        // Desenha centro
-        if (showCenter)
+        // Se grid não foi inicializado, calcula posições temporárias para preview
+        if (gridPositions == null)
         {
-            Gizmos.color = Color.red;
-            Gizmos.DrawWireSphere(center, 0.2f);
+            DrawPreviewGrid();
+            return;
         }
         
-        // Desenha coordenadas nos cantos
-        Gizmos.color = Color.white;
+        DrawGrid();
+    }
+    
+    private void DrawPreviewGrid()
+    {
+        // Preview do grid no editor antes da inicialização
+        EnsureOddGridSize();
         
-        // Cantos do retângulo
-        Vector3[] corners = {
-            new Vector3(minBounds.x, minBounds.y, minBounds.z),
-            new Vector3(maxBounds.x, minBounds.y, minBounds.z),
-            new Vector3(maxBounds.x, maxBounds.y, minBounds.z),
-            new Vector3(minBounds.x, maxBounds.y, minBounds.z)
-        };
+        Vector2Int previewCenter = new Vector2Int(gridColumns / 2, gridRows / 2);
         
-        foreach (var corner in corners)
+        // Grid cells preview
+        for (int x = 0; x < gridColumns; x++)
         {
-            Gizmos.DrawWireSphere(corner, 0.1f);
+            for (int z = 0; z < gridRows; z++)
+            {
+                float worldX = gridCenter.x + (x - gridColumns / 2) * cellSize;
+                float worldZ = gridCenter.z + (z - gridRows / 2) * cellSize;
+                Vector3 cellPosition = new Vector3(worldX, gridYPosition, worldZ);
+                
+                // Cor baseada no tipo de célula
+                if (x == previewCenter.x && z == previewCenter.y)
+                {
+                    Gizmos.color = centerColor; // Célula central (modem)
+                    Gizmos.DrawCube(cellPosition, Vector3.one * (cellSize * 0.9f));
+                }
+                else
+                {
+                    Gizmos.color = gridColor; // Células livres
+                    Gizmos.DrawWireCube(cellPosition, Vector3.one * cellSize);
+                }
+            }
+        }
+        
+        // Centro do grid
+        Gizmos.color = Color.red;
+        Gizmos.DrawWireSphere(gridCenter, 0.3f);
+    }
+    
+    private void DrawGrid()
+    {
+        // Centro do grid
+        Gizmos.color = Color.red;
+        Gizmos.DrawWireSphere(gridCenter, 0.3f);
+        
+        // Grid cells
+        for (int x = 0; x < gridColumns; x++)
+        {
+            for (int z = 0; z < gridRows; z++)
+            {
+                Vector3 cellPosition = gridPositions[x, z];
+                
+                // Cor baseada no estado da célula
+                if (x == centerCell.x && z == centerCell.y)
+                {
+                    // Célula central (modem)
+                    Gizmos.color = centerColor;
+                    Gizmos.DrawCube(cellPosition, Vector3.one * (cellSize * 0.9f));
+                }
+                else if (gridOccupied[x, z])
+                {
+                    // Célula ocupada
+                    Gizmos.color = occupiedColor;
+                    Gizmos.DrawCube(cellPosition, Vector3.one * (cellSize * 0.8f));
+                }
+                else
+                {
+                    // Célula livre
+                    Gizmos.color = gridColor;
+                    Gizmos.DrawWireCube(cellPosition, Vector3.one * cellSize);
+                }
+                
+                // Ponto central da célula
+                Gizmos.color = Color.white;
+                Gizmos.DrawWireSphere(cellPosition, 0.05f);
+            }
+        }
+        
+        // Linhas do grid
+        Gizmos.color = gridColor * 0.3f;
+        DrawGridLines();
+    }
+    
+    private void DrawGridLines()
+    {
+        float halfWidth = (gridColumns * cellSize) / 2f;
+        float halfHeight = (gridRows * cellSize) / 2f;
+        
+        // Linhas horizontais (X)
+        for (int z = 0; z <= gridRows; z++)
+        {
+            Vector3 start = new Vector3(
+                gridCenter.x - halfWidth,
+                gridYPosition,
+                gridCenter.z - halfHeight + z * cellSize
+            );
+            Vector3 end = new Vector3(
+                gridCenter.x + halfWidth,
+                gridYPosition,
+                gridCenter.z - halfHeight + z * cellSize
+            );
+            Gizmos.DrawLine(start, end);
+        }
+        
+        // Linhas verticais (Z)
+        for (int x = 0; x <= gridColumns; x++)
+        {
+            Vector3 start = new Vector3(
+                gridCenter.x - halfWidth + x * cellSize,
+                gridYPosition,
+                gridCenter.z - halfHeight
+            );
+            Vector3 end = new Vector3(
+                gridCenter.x - halfWidth + x * cellSize,
+                gridYPosition,
+                gridCenter.z + halfHeight
+            );
+            Gizmos.DrawLine(start, end);
         }
     }
     
     void OnDrawGizmosSelected()
     {
+        if (gridPositions == null) return;
+        
         // Informações detalhadas quando selecionado
-        Gizmos.color = Color.yellow;
-        
-        // Grid para referência visual
-        int gridLines = 5;
-        Vector3 size = maxBounds - minBounds;
-        
-        // Linhas verticais
-        for (int i = 0; i <= gridLines; i++)
-        {
-            float x = minBounds.x + (size.x / gridLines) * i;
-            Gizmos.DrawLine(
-                new Vector3(x, minBounds.y, minBounds.z),
-                new Vector3(x, maxBounds.y, minBounds.z)
-            );
-        }
-        
-        // Linhas horizontais
-        for (int i = 0; i <= gridLines; i++)
-        {
-            float y = minBounds.y + (size.y / gridLines) * i;
-            Gizmos.DrawLine(
-                new Vector3(minBounds.x, y, minBounds.z),
-                new Vector3(maxBounds.x, y, minBounds.z)
-            );
-        }
+        #if UNITY_EDITOR
+        UnityEditor.Handles.Label(
+            gridCenter + Vector3.up * 2f,
+            $"Grid: {GetFreeCellsCount()}/{TotalGridCells - 1} livres\n" +
+            $"Centro: {centerCell}\n" +
+            $"Tamanho: {gridColumns}x{gridRows}"
+        );
+        #endif
     }
     
-    [ContextMenu("Setup From Camera")]
-    private void TestSetupFromCamera()
+    [ContextMenu("Reset Grid")]
+    private void ResetGrid()
     {
-        SetupFromCamera();
+        InitializeGrid();
+        Debug.Log("[WorldBounds] Grid resetado");
     }
     
-    [ContextMenu("Get Random Position")]
-    private void TestGetRandomPosition()
+    [ContextMenu("Print Grid Info")]
+    private void PrintGridInfo()
     {
-        Vector3 randomPos = GetRandomPosition();
-        Debug.Log($"[WorldBounds] Posição aleatória: {randomPos}");
-    }
-    
-    [ContextMenu("Print Bounds Info")]
-    private void TestPrintBoundsInfo()
-    {
-        Debug.Log($"[WorldBounds] Min: {minBounds}, Max: {maxBounds}, Center: {Center}, Size: {Size}");
+        Debug.Log($"[WorldBounds] Grid Info:\n" +
+                  $"Tamanho: {gridColumns}x{gridRows}\n" +
+                  $"Células totais: {TotalGridCells}\n" +
+                  $"Células livres: {GetFreeCellsCount()}\n" +
+                  $"Células ocupadas: {GetOccupiedCellsCount()}\n" +
+                  $"Centro: {centerCell} @ {GetCenterCellPosition()}");
     }
     
     #endregion

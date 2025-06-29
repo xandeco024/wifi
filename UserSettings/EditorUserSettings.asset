@@ -6,6 +6,9 @@ EditorUserSettings:
   serializedVersion: 4
   m_ConfigSettings:
     RecentlyUsedSceneGuid-0:
+      value: 565450075700590d555a5c7245760c444e154a2b2a787e657b7e4c65e4b36339
+      flags: 0
+    RecentlyUsedSceneGuid-1:
       value: 5b52035300565f035908097444200e44174e4e782d7072347c7c4532e1e43160
       flags: 0
     vcSharedLogLevel:
@@ -25,4 +28,5 @@ EditorUserSettings:
   m_VCHierarchyOverlayIcons: 1
   m_VCOtherOverlayIcons: 1
   m_VCAllowAsyncUpdate: 1
+  m_VCScanLocalPackagesOnConnect: 1
   m_ArtifactGarbageCollection: 1

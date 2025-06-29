@@ -1,199 +1,261 @@
-using System;
 using UnityEngine;
-using UnityEngine.EventSystems;
-using UnityEngine.Events;
 
-public class ClickableObject : MonoBehaviour, 
-    IPointerEnterHandler, IPointerExitHandler, 
-    IPointerDownHandler, IPointerUpHandler,
-    IBeginDragHandler, IDragHandler, IEndDragHandler,
-    IPointerClickHandler
+/// <summary>
+/// Sistema de interação para objetos 3D usando raycast
+/// Detecta cliques, hover e drag em objetos 3D
+/// </summary>
+public class ClickableObject : MonoBehaviour
 {
-    [Header("Debug Settings")]
-    [SerializeField] private bool enableDebugLogs = true;
-    [SerializeField] private string objectName = "";
-    
     [Header("Interaction Settings")]
-    [SerializeField] private bool canBeClicked = true;
-    [SerializeField] private bool canBeDragged = true;
-    [SerializeField] private bool canBeHovered = true;
+    [SerializeField] private bool clickEnabled = true;
+    [SerializeField] private bool dragEnabled = false;
+    [SerializeField] private bool hoverEnabled = true;
+    [SerializeField] private bool doubleClickEnabled = true;
+    [SerializeField] private float doubleClickTime = 0.3f;
     
-    [Header("Unity Events (Optional)")]
-    public UnityEvent OnHoverEnter;
-    public UnityEvent OnHoverExit;
-    public UnityEvent OnClickDown;
-    public UnityEvent OnClickUp;
-    public UnityEvent OnClick;
-    public UnityEvent OnDragStart;
-    public UnityEvent OnDragEnd;
+    [Header("Raycast Settings")]
+    [SerializeField] private LayerMask raycastLayerMask = -1; // Todos os layers
+    [SerializeField] private float raycastDistance = 100f;
     
-    // Estados públicos para outros scripts acessarem
-    public bool IsHovered { get; private set; }
-    public bool IsPressed { get; private set; }
-    public bool IsDragging { get; private set; }
-    public bool IsClicked { get; private set; }
+    [Header("Visual Feedback")]
+    [SerializeField] private bool enableVisualFeedback = true;
+    [SerializeField] private Color hoverColor = Color.yellow;
+    [SerializeField] private Color clickColor = Color.red;
+    [SerializeField] private float feedbackDuration = 0.1f;
     
-    // Events em C# para scripts que preferem usar Actions
-    public static event Action<ClickableObject> OnAnyObjectHoverEnter;
-    public static event Action<ClickableObject> OnAnyObjectHoverExit;
-    public static event Action<ClickableObject> OnAnyObjectClick;
-    public static event Action<ClickableObject> OnAnyObjectDragStart;
-    public static event Action<ClickableObject> OnAnyObjectDragEnd;
+    [Header("Debug")]
+    [SerializeField] private bool enableDebugLogs = false;
+    [SerializeField] private bool showRaycastGizmos = false;
     
-    // Events específicos deste objeto
-    public event Action<ClickableObject> OnThisObjectHoverEnter;
-    public event Action<ClickableObject> OnThisObjectHoverExit;
-    public event Action<ClickableObject> OnThisObjectClick;
-    public event Action<ClickableObject> OnThisObjectDragStart;
-    public event Action<ClickableObject> OnThisObjectDragEnd;
-    public event Action<ClickableObject, Vector2> OnThisObjectDrag;
+    private Camera mainCamera;
+    private bool isDragging = false;
+    private bool isHovering = false;
     
-    // Propriedades úteis para UI
-    public Vector2 MousePosition => Input.mousePosition;
-    public Vector2 LocalMousePosition { get; private set; }
-    public RectTransform RectTransform { get; private set; }
+    // Double click detection
+    private float lastClickTime = 0f;
+    private int clickCount = 0;
+    
+    // Componentes
+    private Renderer objectRenderer;
+    private Color originalColor;
+    private Material originalMaterial;
+    
+    // Eventos
+    public System.Action<ClickableObject> OnThisObjectClick;
+    public System.Action<ClickableObject> OnThisObjectDoubleClick;
+    public System.Action<ClickableObject> OnThisObjectHoverEnter;
+    public System.Action<ClickableObject> OnThisObjectHoverExit;
+    public System.Action<ClickableObject> OnThisObjectDragStart;
+    public System.Action<ClickableObject> OnThisObjectDragEnd;
+    
+    // Propriedades
+    public bool IsClickEnabled => clickEnabled;
+    public bool IsDragEnabled => dragEnabled;
+    public bool IsHoverEnabled => hoverEnabled;
+    public bool IsDragging => isDragging;
+    public bool IsHovering => isHovering;
     
     void Awake()
     {
-        RectTransform = GetComponent<RectTransform>();
+        mainCamera = Camera.main;
+        if (mainCamera == null)
+        {
+            mainCamera = FindObjectOfType<Camera>();
+        }
         
-        // Se não foi definido um nome personalizado, usa o nome do GameObject
-        if (string.IsNullOrEmpty(objectName))
-            objectName = gameObject.name;
+        Collider col = GetComponent<Collider>();
+        if (col == null)
+        {
+            gameObject.AddComponent<BoxCollider>();
+        }
+        
+        // Auto-configuração de componentes
+        SetupComponents();
     }
     
     void Start()
     {
-        // Reset todos os estados no início
-        ResetStates();
+        // Salva cor/material original
+        SaveOriginalAppearance();
     }
     
     void Update()
     {
-        // Atualiza posição local do mouse em coordenadas UI
-        UpdateLocalMousePosition();
+        HandleInput();
     }
     
-    private void UpdateLocalMousePosition()
+    #region Setup
+    
+    private void SetupComponents()
     {
-        if (RectTransform != null)
+        // Auto-configura Renderer
+        objectRenderer = GetComponent<Renderer>();
+        if (objectRenderer == null)
         {
-            // Tenta encontrar o canvas automaticamente
-            Canvas canvas = GetComponentInParent<Canvas>();
-            Camera uiCamera = canvas?.renderMode == RenderMode.ScreenSpaceOverlay ? null : canvas?.worldCamera;
+            objectRenderer = GetComponentInChildren<Renderer>();
+        }
+        
+        // Garante que tem Collider para raycast
+        Collider collider = GetComponent<Collider>();
+        if (collider == null)
+        {
+            // Adiciona BoxCollider se não existir
+            BoxCollider boxCollider = gameObject.AddComponent<BoxCollider>();
             
-            Vector2 localPos;
-            if (RectTransformUtility.ScreenPointToLocalPointInRectangle(RectTransform, Input.mousePosition, uiCamera, out localPos))
+            // Ajusta tamanho baseado no Renderer
+            if (objectRenderer != null)
             {
-                LocalMousePosition = localPos;
+                Bounds bounds = objectRenderer.bounds;
+                boxCollider.size = bounds.size;
+                boxCollider.center = bounds.center - transform.position;
+            }
+            
+            DebugLog("BoxCollider adicionado automaticamente");
+        }
+    }
+    
+    private void SaveOriginalAppearance()
+    {
+        if (objectRenderer != null)
+        {
+            if (objectRenderer.material != null)
+            {
+                originalMaterial = objectRenderer.material;
+                originalColor = objectRenderer.material.color;
             }
         }
     }
     
-    #region Pointer Events
+    #endregion
     
-    public void OnPointerEnter(PointerEventData eventData)
-    {
-        if (!canBeHovered) return;
-        
-        IsHovered = true;
-        DebugLog("hovered (enter)");
-        
-        // Disparar eventos
-        OnHoverEnter?.Invoke();
-        OnAnyObjectHoverEnter?.Invoke(this);
-        OnThisObjectHoverEnter?.Invoke(this);
-    }
+    #region Input Handling
     
-    public void OnPointerExit(PointerEventData eventData)
+    private void HandleInput()
     {
-        if (!canBeHovered) return;
+        if (mainCamera == null) return;
         
-        IsHovered = false;
-        DebugLog("hovered (exit)");
+        Ray ray = mainCamera.ScreenPointToRay(Input.mousePosition);
+        RaycastHit hit;
         
-        // Disparar eventos
-        OnHoverExit?.Invoke();
-        OnAnyObjectHoverExit?.Invoke(this);
-        OnThisObjectHoverExit?.Invoke(this);
-    }
-    
-    public void OnPointerDown(PointerEventData eventData)
-    {
-        if (!canBeClicked) return;
+        bool isMouseOverObject = Physics.Raycast(ray, out hit) && hit.collider.gameObject == gameObject;
         
-        IsPressed = true;
-        DebugLog("pressed down");
+        // Hover
+        if (hoverEnabled)
+        {
+            if (isMouseOverObject && !isHovering)
+            {
+                isHovering = true;
+                OnThisObjectHoverEnter?.Invoke(this);
+                Debug.Log($"Hover enter: {gameObject.name}");
+            }
+            else if (!isMouseOverObject && isHovering)
+            {
+                isHovering = false;
+                OnThisObjectHoverExit?.Invoke(this);
+                Debug.Log($"Hover exit: {gameObject.name}");
+            }
+        }
         
-        // Disparar eventos
-        OnClickDown?.Invoke();
-    }
-    
-    public void OnPointerUp(PointerEventData eventData)
-    {
-        if (!canBeClicked) return;
+        // Click and Double Click
+        if (clickEnabled && isMouseOverObject && Input.GetMouseButtonDown(0))
+        {
+            HandleClick();
+        }
         
-        IsPressed = false;
-        DebugLog("released");
+        // Drag
+        if (dragEnabled && isMouseOverObject)
+        {
+            if (Input.GetMouseButtonDown(0) && !isDragging)
+            {
+                isDragging = true;
+                OnThisObjectDragStart?.Invoke(this);
+                Debug.Log($"Drag start: {gameObject.name}");
+            }
+        }
         
-        // Disparar eventos
-        OnClickUp?.Invoke();
-    }
-    
-    public void OnPointerClick(PointerEventData eventData)
-    {
-        if (!canBeClicked) return;
-        
-        IsClicked = true;
-        DebugLog("clicked");
-        
-        // Disparar eventos
-        OnClick?.Invoke();
-        OnAnyObjectClick?.Invoke(this);
-        OnThisObjectClick?.Invoke(this);
-        
-        // Reset click state após um frame
-        StartCoroutine(ResetClickedState());
+        if (isDragging && Input.GetMouseButtonUp(0))
+        {
+            isDragging = false;
+            OnThisObjectDragEnd?.Invoke(this);
+            Debug.Log($"Drag end: {gameObject.name}");
+        }
     }
     
     #endregion
     
-    #region Drag Events
+    #region Event Handlers
     
-    public void OnBeginDrag(PointerEventData eventData)
+    private void HandleClick()
     {
-        if (!canBeDragged) return;
+        float currentTime = Time.time;
         
-        IsDragging = true;
-        DebugLog("drag started");
-        
-        // Disparar eventos
-        OnDragStart?.Invoke();
-        OnAnyObjectDragStart?.Invoke(this);
-        OnThisObjectDragStart?.Invoke(this);
+        if (doubleClickEnabled && currentTime - lastClickTime < doubleClickTime)
+        {
+            // É um duplo clique
+            clickCount = 0; // Reset
+            OnThisObjectDoubleClick?.Invoke(this);
+            DebugLog($"Duplo clique em: {gameObject.name}");
+        }
+        else
+        {
+            // Primeiro clique ou clique simples
+            clickCount = 1;
+            lastClickTime = currentTime;
+            
+            // Agenda verificação de clique simples
+            StartCoroutine(CheckSingleClick());
+        }
     }
     
-    public void OnDrag(PointerEventData eventData)
+    private System.Collections.IEnumerator CheckSingleClick()
     {
-        if (!canBeDragged || !IsDragging) return;
+        yield return new WaitForSeconds(doubleClickTime);
         
-        DebugLog($"dragging to {eventData.position}");
+        if (clickCount == 1)
+        {
+            // Foi apenas um clique simples
+            OnThisObjectClick?.Invoke(this);
+            DebugLog($"Clique simples em: {gameObject.name}");
+        }
         
-        // Disparar evento com posição
-        OnThisObjectDrag?.Invoke(this, eventData.position);
+        clickCount = 0;
     }
     
-    public void OnEndDrag(PointerEventData eventData)
+    #endregion
+    
+    #region Visual Feedback
+    
+    private void SetColor(Color color)
     {
-        if (!canBeDragged) return;
+        if (objectRenderer != null && objectRenderer.material != null)
+        {
+            objectRenderer.material.color = color;
+        }
+    }
+    
+    private void RestoreOriginalColor()
+    {
+        if (objectRenderer != null && originalMaterial != null)
+        {
+            objectRenderer.material.color = originalColor;
+        }
+    }
+    
+    private System.Collections.IEnumerator FlashColor(Color flashColor)
+    {
+        Color originalColor = objectRenderer != null ? objectRenderer.material.color : Color.white;
         
-        IsDragging = false;
-        DebugLog("drag ended");
+        SetColor(flashColor);
+        yield return new WaitForSeconds(feedbackDuration);
         
-        // Disparar eventos
-        OnDragEnd?.Invoke();
-        OnAnyObjectDragEnd?.Invoke(this);
-        OnThisObjectDragEnd?.Invoke(this);
+        if (isHovering)
+        {
+            SetColor(hoverColor);
+        }
+        else
+        {
+            RestoreOriginalColor();
+        }
     }
     
     #endregion
@@ -201,83 +263,143 @@ public class ClickableObject : MonoBehaviour,
     #region Public Methods
     
     /// <summary>
-    /// Reseta todos os estados de interação
+    /// Configura quais tipos de interação estão habilitados
     /// </summary>
-    public void ResetStates()
+    public void SetInteractionEnabled(bool click = true, bool drag = false, bool hover = true)
     {
-        IsHovered = false;
-        IsPressed = false;
-        IsDragging = false;
-        IsClicked = false;
+        clickEnabled = click;
+        dragEnabled = drag;
+        hoverEnabled = hover;
     }
     
     /// <summary>
-    /// Ativa/desativa tipos específicos de interação
+    /// Simula um clique no objeto
     /// </summary>
-    public void SetInteractionEnabled(bool click, bool drag, bool hover)
+    public void SimulateClick()
     {
-        canBeClicked = click;
-        canBeDragged = drag;
-        canBeHovered = hover;
-        
-        DebugLog($"interaction settings changed - Click: {click}, Drag: {drag}, Hover: {hover}");
+        OnThisObjectClick?.Invoke(this);
     }
     
     /// <summary>
-    /// Força um estado específico (útil para testes ou situações especiais)
+    /// Simula hover enter no objeto
     /// </summary>
-    public void ForceState(bool hovered, bool pressed, bool dragging)
+    public void SimulateHoverEnter()
     {
-        IsHovered = hovered;
-        IsPressed = pressed;
-        IsDragging = dragging;
-        
-        DebugLog($"state forced - Hovered: {hovered}, Pressed: {pressed}, Dragging: {dragging}");
+        if (!isHovering)
+        {
+            OnThisObjectHoverEnter?.Invoke(this);
+        }
+    }
+    
+    /// <summary>
+    /// Simula hover exit no objeto
+    /// </summary>
+    public void SimulateHoverExit()
+    {
+        if (isHovering)
+        {
+            OnThisObjectHoverExit?.Invoke(this);
+        }
+    }
+    
+    /// <summary>
+    /// Retorna informações de debug
+    /// </summary>
+    public string GetDebugInfo()
+    {
+        return $"Object: {gameObject.name}\n" +
+               $"Hovered: {isHovering}\n" +
+               $"Dragging: {isDragging}\n" +
+               $"Click Enabled: {clickEnabled}\n" +
+               $"Drag Enabled: {dragEnabled}\n" +
+               $"Hover Enabled: {hoverEnabled}";
+    }
+    
+    public void SetClickEnabled(bool enabled)
+    {
+        clickEnabled = enabled;
+    }
+    
+    public void SetDragEnabled(bool enabled)
+    {
+        dragEnabled = enabled;
+    }
+    
+    public void SetHoverEnabled(bool enabled)
+    {
+        hoverEnabled = enabled;
     }
     
     #endregion
     
     #region Utility Methods
     
-    private void DebugLog(string action)
+    private void DebugLog(string message)
     {
         if (enableDebugLogs)
         {
-            Debug.Log($"[ClickableObject] {objectName} {action}");
+            Debug.Log($"[ClickableObject] {gameObject.name}: {message}");
         }
-    }
-    
-    private System.Collections.IEnumerator ResetClickedState()
-    {
-        yield return null; // Espera um frame
-        IsClicked = false;
-    }
-    
-    /// <summary>
-    /// Verifica se este objeto é o que está sendo draggado atualmente
-    /// </summary>
-    public bool IsCurrentlyDragging()
-    {
-        return IsDragging;
-    }
-    
-    /// <summary>
-    /// Retorna informações de debug sobre o estado atual
-    /// </summary>
-    public string GetStateInfo()
-    {
-        return $"{objectName} - Hovered: {IsHovered}, Pressed: {IsPressed}, Dragging: {IsDragging}, Clicked: {IsClicked}";
     }
     
     #endregion
     
-    // Método chamado quando o objeto é destruído para limpar eventos
-    void OnDestroy()
+    #region Gizmos
+    
+    void OnDrawGizmos()
     {
-        OnAnyObjectHoverEnter = null;
-        OnAnyObjectHoverExit = null;
-        OnAnyObjectClick = null;
-        OnAnyObjectDragStart = null;
-        OnAnyObjectDragEnd = null;
+        if (!showRaycastGizmos) return;
+        
+        // Desenha raio do mouse
+        Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
+        
+        Gizmos.color = isHovering ? Color.green : Color.red;
+        Gizmos.DrawRay(ray.origin, ray.direction * raycastDistance);
+        
+        // Desenha esfera no ponto de hit
+        RaycastHit hit;
+        if (Physics.Raycast(ray, out hit, raycastDistance, raycastLayerMask))
+        {
+            Gizmos.color = Color.yellow;
+            Gizmos.DrawWireSphere(hit.point, 0.1f);
+        }
     }
+    
+    #endregion
+    
+    #region Context Menu
+    
+    [ContextMenu("Test Click")]
+    private void TestClick()
+    {
+        if (Application.isPlaying)
+        {
+            SimulateClick();
+        }
+        else
+        {
+            Debug.LogWarning("[ClickableObject] Teste só funciona no Play Mode!");
+        }
+    }
+    
+    [ContextMenu("Test Hover")]
+    private void TestHover()
+    {
+        if (Application.isPlaying)
+        {
+            SimulateHoverEnter();
+        }
+        else
+        {
+            Debug.LogWarning("[ClickableObject] Teste só funciona no Play Mode!");
+        }   
+    }
+    
+    [ContextMenu("Print Debug Info")]
+    private void ContextPrintDebugInfo()
+    {
+        Debug.Log(GetDebugInfo());
+    }
+    
+         #endregion
 } 
