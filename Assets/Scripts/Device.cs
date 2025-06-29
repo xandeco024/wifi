@@ -3,46 +3,48 @@ using UnityEngine;
 using UnityEngine.UI;
 using DG.Tweening;
 
-public class Device : MonoBehaviour
+public abstract class Device : MonoBehaviour
 {
     [Header("Device Components")]
-    [SerializeField] private GameObject object3D; // Objeto 3D que deve girar
-    [SerializeField] private Canvas timerCanvas;
-    [SerializeField] private Slider progressSlider; // Timer (branco) + Download (verde)
-    [SerializeField] private TMPro.TextMeshProUGUI statusText;
+    [SerializeField] protected GameObject object3D; // Objeto 3D que deve girar
+    [SerializeField] protected Canvas timerCanvas;
+    [SerializeField] protected Slider progressSlider; // Timer (branco) + Download (verde)
+    [SerializeField] protected TMPro.TextMeshProUGUI statusText;
     
     [Header("Device Settings")]
-    [SerializeField] private string deviceName = "PC";
-    [SerializeField] private bool enableRotation = true;
-    [SerializeField] private float rotationSpeed = 30f;
+    [SerializeField] protected string deviceName = "PC";
+    [SerializeField] protected bool enableRotation = true;
+    [SerializeField] protected float rotationSpeed = 30f;
     
     // Configurações definidas pelo spawner
-    private float timeLimit = 10f;
-    private int pointsOnConnection = 10;
-    private int totalDownloadSizeMB = 100;
+    protected float timeLimit = 10f;
+    protected int pointsOnConnection = 10;
     
     // Estado interno
-    private float currentTime;
-    private Camera mainCamera;
+    protected float currentTime;
+    protected Camera mainCamera;
     
-    // Sistema de download
-    private float downloadedMB = 0f;
-    private bool isDownloading = false;
-    private Coroutine downloadCoroutine;
+    [Header("Reward Settings")]
+    [SerializeField] protected int baseScoreValue = 10;
+    [SerializeField] protected int baseGoldValue = 5;
+    
+    // Multiplicadores de recompensa
+    protected float scoreMultiplier = 1f;
+    protected float goldMultiplier = 1f;
+    protected float downloadSizeMultiplier = 1f;
     
     public enum DeviceState
     {
         Disconnected,
         Connected,
         Failed,
-        Connecting,
-        Downloading
+        Connecting
     }
     
-    [SerializeField] private DeviceState currentState = DeviceState.Disconnected;
+    [SerializeField] protected DeviceState currentState = DeviceState.Disconnected;
     
-    private ClickableObject clickableComponent;
-    private Coroutine timerCoroutine;
+    protected ClickableObject clickableComponent;
+    protected Coroutine timerCoroutine;
     
     public float TimeRemaining => currentTime;
     public float TimeProgress => 1f - (currentTime / timeLimit);
@@ -50,11 +52,9 @@ public class Device : MonoBehaviour
     public bool IsTimerActive => timerCoroutine != null;
     public string DeviceName => deviceName;
     
-    // Propriedades do download
-    public float DownloadProgress => downloadedMB / totalDownloadSizeMB;
-    public int DownloadedMB => Mathf.FloorToInt(downloadedMB);
-    public int TotalDownloadMB => totalDownloadSizeMB;
-    public bool IsDownloading => isDownloading;
+    // Propriedades de recompensa com multiplicadores
+    public int ScoreValue => Mathf.RoundToInt(baseScoreValue * scoreMultiplier);
+    public int GoldValue => Mathf.RoundToInt(baseGoldValue * goldMultiplier);
     
     public System.Action<GameObject> OnDeviceDestroyed;
     public System.Action<Device> OnDeviceTimerExpired;
@@ -98,10 +98,15 @@ public class Device : MonoBehaviour
         }
         
         StopAllCoroutines();
-        StopDownload();
+        CleanupDevice();
     }
     
-    private void SetupComponents()
+    protected virtual void CleanupDevice()
+    {
+        // Override in child classes if needed
+    }
+    
+    protected virtual void SetupComponents()
     {
         // Encontra câmera principal
         mainCamera = Camera.main;
@@ -155,18 +160,16 @@ public class Device : MonoBehaviour
         }
     }
     
-    private void InitializeDevice()
+    protected virtual void InitializeDevice()
     {
         currentTime = timeLimit;
         currentState = DeviceState.Disconnected;
-        downloadedMB = 0f;
-        isDownloading = false;
         gameObject.name = $"Device_{deviceName}";
         UpdateStatusDisplay();
-        Debug.Log($"Device inicializado: {deviceName} - {totalDownloadSizeMB}MB para download, {pointsOnConnection} pontos");
+        Debug.Log($"Device inicializado: {deviceName} - {pointsOnConnection} pontos");
     }
     
-    private void SetupClickableObject()
+    protected virtual void SetupClickableObject()
     {
         if (clickableComponent != null)
         {
@@ -210,59 +213,9 @@ public class Device : MonoBehaviour
         timerCoroutine = null;
     }
     
-    private void UpdateStatusDisplay()
-    {
-        if (progressSlider == null) return;
-        
-        if (currentState == DeviceState.Disconnected || currentState == DeviceState.Connecting)
-        {
-            // Modo timer - mostra tempo restante
-            float timeProgress = currentTime / timeLimit;
-            progressSlider.value = timeProgress;
-            
-            // Cor branca para tempo limite
-            if (progressSlider.fillRect != null)
-            {
-                Image fillImage = progressSlider.fillRect.GetComponent<Image>();
-                if (fillImage != null)
-                {
-                    fillImage.color = Color.white;
-                }
-            }
-            
-            // Texto do tempo restante
-            if (statusText != null)
-            {
-                int secondsLeft = Mathf.CeilToInt(currentTime);
-                statusText.text = $"Conectar em: {secondsLeft}s";
-            }
-        }
-        else if (currentState == DeviceState.Downloading)
-        {
-            // Modo download - mostra progresso
-            float downloadProgress = DownloadProgress;
-            progressSlider.value = downloadProgress;
-            
-            // Cor verde para download
-            if (progressSlider.fillRect != null)
-            {
-                Image fillImage = progressSlider.fillRect.GetComponent<Image>();
-                if (fillImage != null)
-                {
-                    fillImage.color = Color.green;
-                }
-            }
-            
-            // Texto do download
-            if (statusText != null)
-            {
-                int percentage = Mathf.FloorToInt(downloadProgress * 100f);
-                statusText.text = $"{percentage}% {DownloadedMB}MB/{TotalDownloadMB}MB";
-            }
-        }
-    }
+    protected abstract void UpdateStatusDisplay();
     
-    private void HandleTimerExpired()
+    protected virtual void HandleTimerExpired()
     {
         currentState = DeviceState.Failed;
         StopTimer();
@@ -279,7 +232,7 @@ public class Device : MonoBehaviour
         StartCoroutine(DestroyAfterDelay(1f));
     }
     
-    private void OnDeviceClicked(ClickableObject clickedObject)
+    protected virtual void OnDeviceClicked(ClickableObject clickedObject)
     {
         Debug.Log($"Device {deviceName} foi clicado!");
     }
@@ -299,10 +252,15 @@ public class Device : MonoBehaviour
             
             OnDeviceConnected?.Invoke(this);
             
-            // Inicia download
-            StartDownload();
+            // Inicia minigame específico do tipo de device
+            StartMinigame();
         }
     }
+    
+    /// <summary>
+    /// Inicia o minigame específico do device. Deve ser implementado por cada tipo.
+    /// </summary>
+    public abstract void StartMinigame();
     
     public void SetConnecting(bool isConnecting)
     {
@@ -322,7 +280,7 @@ public class Device : MonoBehaviour
         UpdateStatusDisplay();
     }
     
-    private IEnumerator DestroyAfterDelay(float delay)
+    protected IEnumerator DestroyAfterDelay(float delay)
     {
         yield return new WaitForSeconds(delay);
         
@@ -336,7 +294,7 @@ public class Device : MonoBehaviour
         Destroy(gameObject);
     }
     
-    private IEnumerator PlayDestroyAnimation()
+    protected IEnumerator PlayDestroyAnimation()
     {
         // Desabilita interação durante animação
         if (clickableComponent != null)
@@ -373,7 +331,7 @@ public class Device : MonoBehaviour
         yield return new WaitForSeconds(0.3f);
     }
     
-    private IEnumerator PlaySuccessAnimation()
+    protected IEnumerator PlaySuccessAnimation()
     {
         // Desabilita interação durante animação
         if (clickableComponent != null)
@@ -411,77 +369,46 @@ public class Device : MonoBehaviour
         Destroy(gameObject);
     }
     
-    public void StartDownload()
-    {
-        if (currentState == DeviceState.Connected && !isDownloading)
-        {
-            currentState = DeviceState.Downloading;
-            isDownloading = true;
-            
-            // Atualiza UI para modo download
-            UpdateStatusDisplay();
-            
-            downloadCoroutine = StartCoroutine(DownloadProcess());
-            Debug.Log($"Download iniciado: {totalDownloadSizeMB}MB");
-        }
-    }
-    
-    private IEnumerator DownloadProcess()
-    {
-        while (downloadedMB < totalDownloadSizeMB && currentState == DeviceState.Downloading)
-        {
-            yield return new WaitForSeconds(0.1f);
-            
-            // Obtém velocidade do modem
-            float downloadSpeed = Modem.Instance != null ? Modem.Instance.InternetSpeed : 10f;
-            
-            // Calcula quanto baixar neste frame (MB por segundo * 0.1 segundos)
-            float downloadThisFrame = downloadSpeed * 0.1f;
-            downloadedMB = Mathf.Min(downloadedMB + downloadThisFrame, totalDownloadSizeMB);
-            
-            UpdateStatusDisplay();
-        }
-        
-        if (currentState == DeviceState.Downloading && downloadedMB >= totalDownloadSizeMB)
-        {
-            OnDownloadComplete();
-        }
-        
-        downloadCoroutine = null;
-    }
-    
-    private void OnDownloadComplete()
-    {
-        currentState = DeviceState.Connected;
-        isDownloading = false;
-        
-        Debug.Log($"Download completo: {deviceName}");
-        
-        // BUGFIX: Notifica conclusão ANTES da animação para dar coins/score
-        OnDeviceCompleted?.Invoke(this);
-        
-        // Animação de sucesso (girar e pular)
-        StartCoroutine(PlaySuccessAnimation());
-    }
-    
-    public void StopDownload()
-    {
-        if (downloadCoroutine != null)
-        {
-            StopCoroutine(downloadCoroutine);
-            downloadCoroutine = null;
-        }
-        isDownloading = false;
-    }
-    
-    public void SetSpawnConfig(float timer, int points, int downloadSizeMB)
+    public virtual void SetSpawnConfig(float timer, int points)
     {
         timeLimit = timer;
         pointsOnConnection = points;
-        totalDownloadSizeMB = downloadSizeMB;
         currentTime = timeLimit;
-        downloadedMB = 0f;
         UpdateStatusDisplay();
+    }
+    
+    /// <summary>
+    /// Completa o device com sucesso
+    /// </summary>
+    protected void CompleteDevice()
+    {
+        if (currentState == DeviceState.Connected)
+        {
+            StopTimer();
+            currentState = DeviceState.Failed;
+            
+            // Usa os valores com multiplicadores
+            if (GameManager.Instance != null)
+            {
+                GameManager.Instance.AddScore(ScoreValue);
+                GameManager.Instance.AddCoins(GoldValue);
+            }
+            
+            OnDeviceCompleted?.Invoke(this);
+            StartCoroutine(PlaySuccessAnimation());
+            
+            Debug.Log($"✨ Device completado! +{ScoreValue} pontos, +{GoldValue} moedas");
+        }
+    }
+    
+    /// <summary>
+    /// Falha o device
+    /// </summary>
+    protected void FailDevice()
+    {
+        currentState = DeviceState.Failed;
+        Debug.Log($"Device falhou: {deviceName}");
+        StartCoroutine(DestroyAfterDelay(1f));
     }
     
     /// <summary>
@@ -498,12 +425,26 @@ public class Device : MonoBehaviour
     public void ForceDestroy()
     {
         StopAllCoroutines();
-        StopDownload();
+        CleanupDevice();
         OnDeviceDestroyed?.Invoke(gameObject);
         Destroy(gameObject);
     }
     
     // Getters para compatibilidade
-    public int GetConnectionPoints() => pointsOnConnection;
+    public int GetConnectionPoints() => Mathf.RoundToInt(pointsOnConnection * scoreMultiplier);
     public int GetBonusPoints() => 5; // Valor fixo
+    
+    public void ApplyLevelMultipliers(float score, float gold, float download)
+    {
+        scoreMultiplier = score;
+        goldMultiplier = gold;
+        downloadSizeMultiplier = download;
+        
+        Debug.Log($"Multiplicadores aplicados em {deviceName}: Score {score}x, Gold {gold}x, Download {download}x");
+    }
+    
+    public virtual int GetDownloadSize()
+    {
+        return 0; // Sobrescrever em classes que usam download
+    }
 } 

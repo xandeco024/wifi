@@ -412,12 +412,12 @@ public class Modem : MonoBehaviour
         CableUpgradeConfig nextCableLevel = GetNextCableUpgrade();
         
         // Verifica se tem dinheiro suficiente
-        if (ScoreAndCoinsManager.Instance != null)
+        if (GameManager.Instance != null)
         {
-            if (ScoreAndCoinsManager.Instance.GetCurrentCoins() >= nextCableLevel.upgradeCost)
+            if (GameManager.Instance.Coins >= nextCableLevel.upgradeCost)
             {
                 // Cobra o upgrade
-                ScoreAndCoinsManager.Instance.SpendCoins(nextCableLevel.upgradeCost);
+                GameManager.Instance.SpendCoins(nextCableLevel.upgradeCost);
                 
                 // Faz o upgrade
                 currentCableLevelIndex++;
@@ -436,13 +436,13 @@ public class Modem : MonoBehaviour
             }
             else
             {
-                int coinsNeeded = nextCableLevel.upgradeCost - ScoreAndCoinsManager.Instance.GetCurrentCoins();
+                int coinsNeeded = nextCableLevel.upgradeCost - GameManager.Instance.Coins;
                 Debug.Log($"[Modem] Dinheiro insuficiente para upgrade de cabos! Precisa de mais {coinsNeeded} coins para {nextCableLevel.levelName}");
             }
         }
         else
         {
-            Debug.LogWarning("[Modem] ScoreAndCoinsManager não encontrado!");
+            Debug.LogWarning("[Modem] GameManager não encontrado!");
         }
     }
     
@@ -457,12 +457,12 @@ public class Modem : MonoBehaviour
         SpeedUpgradeConfig nextSpeedLevel = GetNextSpeedUpgrade();
         
         // Verifica se tem dinheiro suficiente
-        if (ScoreAndCoinsManager.Instance != null)
+        if (GameManager.Instance != null)
         {
-            if (ScoreAndCoinsManager.Instance.GetCurrentCoins() >= nextSpeedLevel.upgradeCost)
+            if (GameManager.Instance.Coins >= nextSpeedLevel.upgradeCost)
             {
                 // Cobra o upgrade
-                ScoreAndCoinsManager.Instance.SpendCoins(nextSpeedLevel.upgradeCost);
+                GameManager.Instance.SpendCoins(nextSpeedLevel.upgradeCost);
                 
                 // Faz o upgrade
                 currentSpeedLevelIndex++;
@@ -481,13 +481,13 @@ public class Modem : MonoBehaviour
             }
             else
             {
-                int coinsNeeded = nextSpeedLevel.upgradeCost - ScoreAndCoinsManager.Instance.GetCurrentCoins();
+                int coinsNeeded = nextSpeedLevel.upgradeCost - GameManager.Instance.Coins;
                 Debug.Log($"[Modem] Dinheiro insuficiente para upgrade de velocidade! Precisa de mais {coinsNeeded} coins para {nextSpeedLevel.levelName}");
             }
         }
         else
         {
-            Debug.LogWarning("[Modem] ScoreAndCoinsManager não encontrado!");
+            Debug.LogWarning("[Modem] GameManager não encontrado!");
         }
     }
     
