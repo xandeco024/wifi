@@ -1,0 +1,213 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1001 &7581410203064930157
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: bedcdbff75cb39f469a09d3ac7c3356c, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 30
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: bedcdbff75cb39f469a09d3ac7c3356c, type: 3}
+      propertyPath: m_LocalScale.y
+      value: 30
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: bedcdbff75cb39f469a09d3ac7c3356c, type: 3}
+      propertyPath: m_LocalScale.z
+      value: 30
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: bedcdbff75cb39f469a09d3ac7c3356c, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: bedcdbff75cb39f469a09d3ac7c3356c, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0.5
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: bedcdbff75cb39f469a09d3ac7c3356c, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 2.75
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: bedcdbff75cb39f469a09d3ac7c3356c, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.38268343
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: bedcdbff75cb39f469a09d3ac7c3356c, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: bedcdbff75cb39f469a09d3ac7c3356c, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: -0.92387956
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: bedcdbff75cb39f469a09d3ac7c3356c, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: bedcdbff75cb39f469a09d3ac7c3356c, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: bedcdbff75cb39f469a09d3ac7c3356c, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: -135
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: bedcdbff75cb39f469a09d3ac7c3356c, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: bedcdbff75cb39f469a09d3ac7c3356c, type: 3}
+      propertyPath: m_Name
+      value: Modem
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: bedcdbff75cb39f469a09d3ac7c3356c, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 4899346805003303722}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: bedcdbff75cb39f469a09d3ac7c3356c, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 6216121943701489873}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: bedcdbff75cb39f469a09d3ac7c3356c, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 200681437462621740}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: bedcdbff75cb39f469a09d3ac7c3356c, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 3892302067503376906}
+  m_SourcePrefab: {fileID: 100100000, guid: bedcdbff75cb39f469a09d3ac7c3356c, type: 3}
+--- !u!1 &7347620286045893180 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 919132149155446097, guid: bedcdbff75cb39f469a09d3ac7c3356c, type: 3}
+  m_PrefabInstance: {fileID: 7581410203064930157}
+  m_PrefabAsset: {fileID: 0}
+--- !u!65 &4899346805003303722
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7347620286045893180}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 0.04295589, y: 0.047206827, z: 0.034281224}
+  m_Center: {x: 0.00048573222, y: 0.0008311093, z: 0}
+--- !u!114 &6216121943701489873
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7347620286045893180}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 396dcfa69e909d5439a4d401d8314fdf, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  clickEnabled: 1
+  dragEnabled: 0
+  hoverEnabled: 1
+  doubleClickEnabled: 1
+  doubleClickTime: 0.3
+  raycastLayerMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  raycastDistance: 100
+  enableVisualFeedback: 1
+  hoverColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
+  clickColor: {r: 1, g: 0, b: 0, a: 1}
+  feedbackDuration: 0.1
+  enableDebugLogs: 0
+  showRaycastGizmos: 0
+--- !u!114 &200681437462621740
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7347620286045893180}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 625c7e60fd176ff458d151bd4ff4a027, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  cablePrefab: {fileID: 0}
+  maxCableDistance: 12
+  connectionRadius: 1
+  frontOffsetZ: 0.8
+  backOffsetZ: -0.8
+  curveOffsetDistance: 2
+  curveResolution: 8
+  normalCableColor: {r: 0.9317228, g: 0.9622642, b: 0.63999647, a: 1}
+  validCableColor: {r: 1, g: 0.7609758, b: 0, a: 1}
+  invalidCableColor: {r: 1, g: 0, b: 0, a: 1}
+--- !u!114 &3892302067503376906
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7347620286045893180}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d22b6053a5562964ca1ad6c303bb2b1f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  enableInteraction: 1
+  cableUpgrades:
+  - level: 1
+    levelName: 2 Portas
+    upgradeCost: 0
+    maxSimultaneousCables: 2
+  - level: 2
+    levelName: 3 Portas
+    upgradeCost: 40
+    maxSimultaneousCables: 3
+  - level: 3
+    levelName: 4 Portas
+    upgradeCost: 80
+    maxSimultaneousCables: 4
+  - level: 4
+    levelName: 5 Portas
+    upgradeCost: 150
+    maxSimultaneousCables: 5
+  - level: 5
+    levelName: 6 Portas
+    upgradeCost: 300
+    maxSimultaneousCables: 6
+  speedUpgrades:
+  - level: 1
+    levelName: 10 MB/s
+    upgradeCost: 0
+    internetSpeedMBps: 10
+  - level: 2
+    levelName: 20 MB/s
+    upgradeCost: 60
+    internetSpeedMBps: 20
+  - level: 3
+    levelName: 35 MB/s
+    upgradeCost: 120
+    internetSpeedMBps: 35
+  - level: 4
+    levelName: 50 MB/s
+    upgradeCost: 200
+    internetSpeedMBps: 50
+  - level: 5
+    levelName: 80 MB/s
+    upgradeCost: 350
+    internetSpeedMBps: 80
