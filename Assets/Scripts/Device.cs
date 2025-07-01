@@ -22,6 +22,7 @@ public abstract class Device : MonoBehaviour
     
     // Estado interno
     protected float currentTime;
+    private bool countdownPlayed = false; // para tocar o som apenas uma vez
     protected Camera mainCamera;
     
     [Header("Reward Settings")]
@@ -182,6 +183,7 @@ public abstract class Device : MonoBehaviour
     {
         if (timerCoroutine == null && currentState == DeviceState.Disconnected)
         {
+            countdownPlayed = false; // reinicia flag
             timerCoroutine = StartCoroutine(TimerCountdown());
         }
     }
@@ -203,6 +205,13 @@ public abstract class Device : MonoBehaviour
             currentTime -= 0.1f;
             UpdateStatusDisplay();
             OnDeviceTimerUpdate?.Invoke(this, currentTime);
+            
+            // SFX de contagem regressiva quando faltam 3 segundos
+            if (!countdownPlayed && currentTime <= 2f)
+            {
+                SFXManager.Play("countdown");
+                countdownPlayed = true;
+            }
         }
         
         if (currentState == DeviceState.Disconnected)
@@ -398,6 +407,9 @@ public abstract class Device : MonoBehaviour
             StartCoroutine(PlaySuccessAnimation());
             
             Debug.Log($"✨ Device completado! +{ScoreValue} pontos, +{GoldValue} moedas");
+
+            // SFX de sucesso
+            SFXManager.Play("success");
         }
     }
     

@@ -386,6 +386,9 @@ public class CableController : MonoBehaviour
         // Conecta o device
         device.ConnectDevice();
         
+        // Efeito sonoro de conexão
+        SFXManager.Play("connected");
+        
         Debug.Log($"Cabo conectado ao device: {device.name}");
         OnCableConnected?.Invoke(device);
         

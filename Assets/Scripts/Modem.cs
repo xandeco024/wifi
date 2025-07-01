@@ -425,6 +425,9 @@ public class Modem : MonoBehaviour
                 // Animação de upgrade
                 PlayUpgradeAnimation();
                 
+                // SFX de upgrade
+                SFXManager.Play("upgrade");
+                
                 Debug.Log($"[Modem] Upgrade de cabos realizado! Nível {CurrentCableLevel}: {CurrentCableLevelName} " +
                          $"(Cabos Simultâneos: {MaxSimultaneousCables})");
                 
@@ -469,6 +472,9 @@ public class Modem : MonoBehaviour
                 
                 // Animação de upgrade
                 PlayUpgradeAnimation();
+                
+                // SFX de upgrade
+                SFXManager.Play("upgrade");
                 
                 Debug.Log($"[Modem] Upgrade de velocidade realizado! Nível {CurrentSpeedLevel}: {CurrentSpeedLevelName} " +
                          $"(Velocidade: {InternetSpeed}MB/s)");
@@ -619,5 +625,25 @@ public class Modem : MonoBehaviour
         currentSpeedLevelIndex = 0;
         
         Debug.Log("🔄 Modem resetado para nível básico");
+    }
+    
+    public void PlayDamageAnimation()
+    {
+        // Piscar vermelho e sacudir levemente
+        Renderer[] rends = GetComponentsInChildren<Renderer>();
+        foreach (var rend in rends)
+        {
+            if (rend.material.HasProperty("_Color"))
+            {
+                Color original = rend.material.color;
+                Sequence seq = DOTween.Sequence();
+                seq.Append(rend.material.DOColor(Color.red, 0.1f));
+                seq.Append(rend.material.DOColor(original, 0.1f));
+                seq.SetLoops(3);
+            }
+        }
+
+        // Shake
+        transform.DOShakePosition(0.3f, 0.1f, 10, 90);
     }
 } 

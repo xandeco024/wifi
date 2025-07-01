@@ -16,7 +16,7 @@
 - ❌ NÃO fazer sistemas de auto-configuração/auto-setup complexos
 - ❌ NÃO criar "helpers" e "creators" que quase nunca funcionam
 - ✅ FOQUE no código funcional que o usuário precisa
-- ✅ O usuário está montando o jogo manualmente - apenas forneça o código
+- ✅ O usuário está montando o jogo manualmente - apenas forneça o código     
 - ✅ Documentação mínima apenas quando solicitada
 
 **Estas regras se aplicam a TODAS as fases de desenvolvimento.**

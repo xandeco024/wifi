@@ -13,10 +13,22 @@ public class UIManager : MonoBehaviour
     [SerializeField] private string coinsPrefix = "Coins: ";
     [SerializeField] private string livesPrefix = "Vidas: ";
     
+    [Header("Guide Panel")]
+    [SerializeField] private GameObject guidePanel;
+    private bool guideVisible = false;
+    
     void Start()
     {
         // Conecta aos eventos do GameManager
         ConnectToGameManager();
+        
+        // Mostra guia inicial e pausa jogo
+        if (guidePanel != null)
+        {
+            guidePanel.SetActive(true);
+            guideVisible = true;
+            Time.timeScale = 0f;
+        }
         
         Debug.Log("✅ UIManager iniciado - conectado ao GameManager!");
     }
@@ -118,6 +130,24 @@ public class UIManager : MonoBehaviour
         Debug.Log("🎮 UIManager: Game Restart detectado!");
         // Aqui você pode adicionar efeitos visuais de restart
         // Por exemplo: animação de reset dos valores, etc.
+    }
+    
+    #endregion
+    
+    #region Guide Panel Methods
+    
+    public void ToggleGuide()
+    {
+        if (guidePanel == null) return;
+
+        guideVisible = !guideVisible;
+        guidePanel.SetActive(guideVisible);
+
+        // Pausa/despausa jogo
+        Time.timeScale = guideVisible ? 0f : 1f;
+
+        // SFX
+        SFXManager.Play("paper");
     }
     
     #endregion

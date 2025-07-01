@@ -3,8 +3,12 @@
   "WorkspaceRootPath": "C:\\Users\\Stocker\\Desktop\\xand\\wifi\\",
   "Documents": [
     {
-      "AbsoluteMoniker": "D:0:0:{C1F55C81-2979-5934-9607-3EB3250E9EAE}|Assembly-CSharp.csproj|c:\\users\\stocker\\desktop\\xand\\wifi\\assets\\scripts\\scoreandcoinsmanager.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{C1F55C81-2979-5934-9607-3EB3250E9EAE}|Assembly-CSharp.csproj|solutionrelative:assets\\scripts\\scoreandcoinsmanager.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Stocker\\Desktop\\xand\\wifi\\Library\\PackageCache\\com.unity.ugui@1.0.0\\Editor\\UI\\GraphicEditor.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:Library\\PackageCache\\com.unity.ugui@1.0.0\\Editor\\UI\\GraphicEditor.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Stocker\\Desktop\\xand\\wifi\\Assets\\Scripts\\ScoreAndCoinsManager.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:Assets\\Scripts\\ScoreAndCoinsManager.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     }
   ],
   "DocumentGroupContainers": [
@@ -23,15 +27,26 @@
             {
               "$type": "Document",
               "DocumentIndex": 0,
+              "Title": "GraphicEditor.cs",
+              "DocumentMoniker": "C:\\Users\\Stocker\\Desktop\\xand\\wifi\\Library\\PackageCache\\com.unity.ugui@1.0.0\\Editor\\UI\\GraphicEditor.cs",
+              "RelativeDocumentMoniker": "Library\\PackageCache\\com.unity.ugui@1.0.0\\Editor\\UI\\GraphicEditor.cs",
+              "ToolTip": "C:\\Users\\Stocker\\Desktop\\xand\\wifi\\Library\\PackageCache\\com.unity.ugui@1.0.0\\Editor\\UI\\GraphicEditor.cs",
+              "RelativeToolTip": "Library\\PackageCache\\com.unity.ugui@1.0.0\\Editor\\UI\\GraphicEditor.cs",
+              "ViewState": "AgIAADAAAAAAAAAAAABBwDEAAABBAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-06-29T13:27:52.198Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
               "Title": "ScoreAndCoinsManager.cs",
               "DocumentMoniker": "C:\\Users\\Stocker\\Desktop\\xand\\wifi\\Assets\\Scripts\\ScoreAndCoinsManager.cs",
               "RelativeDocumentMoniker": "Assets\\Scripts\\ScoreAndCoinsManager.cs",
               "ToolTip": "C:\\Users\\Stocker\\Desktop\\xand\\wifi\\Assets\\Scripts\\ScoreAndCoinsManager.cs",
               "RelativeToolTip": "Assets\\Scripts\\ScoreAndCoinsManager.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-06-29T02:28:18.964Z",
-              "EditorCaption": ""
+              "WhenOpened": "2025-06-29T02:28:18.964Z"
             }
           ]
         }

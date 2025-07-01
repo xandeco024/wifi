@@ -197,7 +197,11 @@ public class DeviceSpawner : MonoBehaviour
             );
             
             device.OnDeviceDestroyed += OnDeviceDestroyed;
+            device.OnDeviceTimerExpired += HandleDeviceTimerExpired;
         }
+
+        // SFX: som de spawn
+        SFXManager.Play("spawn");
 
         Debug.Log($"Device spawnado em {spawnPosition}! ({activeDevices.Count}/{currentLevel.maxActiveDevices})");
     }
@@ -212,6 +216,14 @@ public class DeviceSpawner : MonoBehaviour
         
         activeDevices.Remove(device);
         Debug.Log($"Device destruído! ({activeDevices.Count}/{currentLevel.maxActiveDevices})");
+    }
+
+    private void HandleDeviceTimerExpired(Device device)
+    {
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.LoseLife();
+        }
     }
 
     public void DestroyAllDevices()

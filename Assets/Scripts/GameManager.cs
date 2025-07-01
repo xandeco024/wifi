@@ -122,6 +122,12 @@ public class GameManager : MonoBehaviour
         
         Debug.Log($"💔 Vida perdida! Vidas: {currentLives}/{maxLives}");
         
+        // Animação de dano no modem
+        if (Modem.Instance != null)
+        {
+            Modem.Instance.PlayDamageAnimation();
+        }
+        
         if (currentLives <= 0)
         {
             TriggerGameOver();
@@ -160,8 +166,13 @@ public class GameManager : MonoBehaviour
             DeviceSpawner.Instance.enabled = false;
         }
         
-        // Reinicia após delay
-        Invoke(nameof(RestartGame), restartDelay);
+        // Carrega cena de menu após delay
+        Invoke(nameof(LoadMenuScene), restartDelay);
+    }
+    
+    private void LoadMenuScene()
+    {
+        SceneManager.LoadScene("menu");
     }
     
     public void RestartGame()

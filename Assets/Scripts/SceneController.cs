@@ -182,6 +182,25 @@ public class SceneController : MonoBehaviour
         }
     }
     
+    /// <summary>
+    /// Versão estática utilitária para encerrar o jogo via UI Button sem precisar de referência ao objeto na cena.
+    /// </summary>
+    public static void QuitGameStatic()
+    {
+        if (Instance != null)
+        {
+            Instance.QuitGame();
+        }
+        else
+        {
+#if UNITY_EDITOR
+            UnityEditor.EditorApplication.isPlaying = false;
+#else
+            Application.Quit();
+#endif
+        }
+    }
+    
     #endregion
     
     #region Métodos Sobrecarregados
